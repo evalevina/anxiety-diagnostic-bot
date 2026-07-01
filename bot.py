@@ -1,0 +1,94 @@
+import asyncio
+import logging
+import os
+import traceback
+
+from aiogram import Bot, Dispatcher
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.types import ErrorEvent, BotCommand
+
+from config import BOT_TOKEN, ADMIN_ID
+
+from handlers.start import router as start_router
+from handlers.quiz import router as quiz_router
+from handlers.result import router as result_router
+from handlers.admin import router as admin_router
+from handlers.ai_helper import router as ai_helper_router
+from handlers.booking import booking_router
+from handlers.diary import diary_router
+from handlers.referral import referral_router
+from handlers.reviews import reviews_router
+
+from database import init_db
+from funnel_worker import start_funnel_worker
+from webhook_server import start_webhook_server
+
+# Логи: в файл + в консоль
+_log_dir = os.path.dirname(os.path.abspath(__file__))
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.FileHandler(os.path.join(_log_dir, "bot.log"), encoding="utf-8"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+bot = Bot(token=BOT_TOKEN, session=AiohttpSession(timeout=60))
+
+dp = Dispatcher()
+
+# Подключаем роутеры
+dp.include_router(start_router)
+dp.include_router(quiz_router)
+dp.include_router(result_router)
+dp.include_router(admin_router)
+dp.include_router(ai_helper_router)
+dp.include_router(booking_router)
+dp.include_router(diary_router)
+dp.include_router(referral_router)
+dp.include_router(reviews_router)
+
+
+@dp.errors()
+async def global_error_handler(event: ErrorEvent):
+    logger.error(f"Unhandled error: {event.exception}", exc_info=event.exception)
+    try:
+        tb = "".join(traceback.format_exception(type(event.exception), event.exception, event.exception.__traceback__))
+        short = tb[-800:] if len(tb) > 800 else tb
+        await bot.send_message(
+            ADMIN_ID,
+            f"🚨 Необработанная ошибка\n\n<code>{short}</code>",
+            parse_mode="HTML"
+        )
+    except Exception:
+        pass
+
+
+async def main():
+    init_db()
+
+    await bot.set_my_commands([
+        BotCommand(command="start", description="Начать / Главная"),
+        BotCommand(command="mytype", description="Мой тип тревоги"),
+        BotCommand(command="restart", description="Пройти тест заново"),
+        BotCommand(command="help", description="Помощь"),
+    ])
+
+    # Запускаем в фоне, чтобы не блокировать polling
+    asyncio.create_task(
+        start_funnel_worker(bot)
+    )
+
+    asyncio.create_task(
+        start_webhook_server(bot)
+    )
+
+    logger.info("Bot started OK")
+
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

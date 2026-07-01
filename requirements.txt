@@ -1,0 +1,7 @@
+aiogram==3.4.1
+openai
+aiosqlite
+python-dotenv
+openpyxl
+aiohttp
+yookassa
