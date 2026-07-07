@@ -91,6 +91,22 @@ def init_db():
     )
     """)
 
+    # разбор мыслей (CBT thought record)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS thought_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        diary_id INTEGER,
+        automatic_thought TEXT,
+        distortion TEXT,
+        reframe TEXT,
+        score_before INTEGER,
+        score_after INTEGER,
+        created_at INTEGER
+    )
+    """)
+
     # отзывы
 
     cursor.execute("""
@@ -359,6 +375,19 @@ def save_phone(user_id, phone):
 
     conn.commit()
     conn.close()
+
+
+def get_phone(user_id):
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT phone FROM users WHERE user_id=?", (user_id,))
+    row = cursor.fetchone()
+
+    conn.close()
+
+    return row[0] if row and row[0] else None
 
 
 def update_result(user_id, anxiety_type):
@@ -824,8 +853,63 @@ def save_diary_entry(user_id, score, note=None):
     VALUES (?, ?, ?, ?)
     """, (user_id, score, note, int(time.time())))
 
+    diary_id = cursor.lastrowid
+
     conn.commit()
     conn.close()
+
+    return diary_id
+
+
+# ---------------- РАЗБОР МЫСЛИ (CBT) ----------------
+
+
+def save_thought_record(user_id, diary_id, automatic_thought, distortion, reframe, score_before, score_after):
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    INSERT INTO thought_records
+    (user_id, diary_id, automatic_thought, distortion, reframe, score_before, score_after, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (user_id, diary_id, automatic_thought, distortion, reframe, score_before, score_after, int(time.time())))
+
+    conn.commit()
+    conn.close()
+
+
+def get_thought_record_count(user_id):
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT COUNT(*) FROM thought_records WHERE user_id=?", (user_id,))
+    count = cursor.fetchone()[0]
+
+    conn.close()
+
+    return count
+
+
+def get_common_distortion(user_id):
+    """Возвращает (искажение, сколько раз встретилось) — самое частое у пользователя, или None."""
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT distortion, COUNT(*) as c FROM thought_records
+    WHERE user_id=? AND distortion IS NOT NULL
+    GROUP BY distortion
+    ORDER BY c DESC
+    LIMIT 1
+    """, (user_id,))
+    row = cursor.fetchone()
+
+    conn.close()
+
+    return row if row else None
 
 
 def get_diary_history(user_id, days=7):

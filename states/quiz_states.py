@@ -22,3 +22,10 @@ class DiaryState(StatesGroup):
 
 class ReviewState(StatesGroup):
     waiting_text = State()
+
+
+class ThoughtRecordState(StatesGroup):
+    waiting_thought = State()
+    waiting_distortion = State()
+    waiting_reframe = State()
+    waiting_rerate = State()

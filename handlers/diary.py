@@ -11,8 +11,9 @@ from states.quiz_states import DiaryState
 from database import (
     save_diary_entry, get_diary_history,
     add_funnel_task, has_diary_weekly_task,
-    get_diary_streak
+    get_diary_streak, get_user_bought
 )
+from handlers.thought_record import diary_cbt_button
 
 diary_router = Router()
 
@@ -98,7 +99,7 @@ async def _save_and_respond(user_id, state, note, message):
     data = await state.get_data()
     score = data.get("diary_score", 0)
 
-    save_diary_entry(user_id, score, note)
+    diary_id = save_diary_entry(user_id, score, note)
 
     if not has_diary_weekly_task(user_id):
         add_funnel_task(user_id, 7 * 86400, "diary_weekly")
@@ -144,7 +145,8 @@ async def _save_and_respond(user_id, state, note, message):
                 "Если захочешь поговорить — нажми «📅 Записаться» 🤍"
             )
 
-    await message.answer(reply, parse_mode="Markdown")
+    reply_markup = diary_cbt_button(diary_id, score) if get_user_bought(user_id) else None
+    await message.answer(reply, parse_mode="Markdown", reply_markup=reply_markup)
 
 
 def _build_trend(history):

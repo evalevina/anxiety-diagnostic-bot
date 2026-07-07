@@ -1,5 +1,5 @@
 aiogram==3.4.1
-openai
+anthropic
 aiosqlite
 python-dotenv
 openpyxl

@@ -16,6 +16,7 @@ from handlers.admin import router as admin_router
 from handlers.ai_helper import router as ai_helper_router
 from handlers.booking import booking_router
 from handlers.diary import diary_router
+from handlers.thought_record import thought_router
 from handlers.referral import referral_router
 from handlers.reviews import reviews_router
 
@@ -47,6 +48,7 @@ dp.include_router(admin_router)
 dp.include_router(ai_helper_router)
 dp.include_router(booking_router)
 dp.include_router(diary_router)
+dp.include_router(thought_router)
 dp.include_router(referral_router)
 dp.include_router(reviews_router)
 
@@ -69,12 +71,16 @@ async def global_error_handler(event: ErrorEvent):
 async def main():
     init_db()
 
-    await bot.set_my_commands([
-        BotCommand(command="start", description="Начать / Главная"),
-        BotCommand(command="mytype", description="Мой тип тревоги"),
-        BotCommand(command="restart", description="Пройти тест заново"),
-        BotCommand(command="help", description="Помощь"),
-    ])
+    try:
+        await bot.set_my_commands([
+            BotCommand(command="start", description="Начать / Главная"),
+            BotCommand(command="mytype", description="Мой тип тревоги"),
+            BotCommand(command="restart", description="Пройти тест заново"),
+            BotCommand(command="help", description="Помощь"),
+        ])
+    except Exception:
+        # Не критично для работы бота — не блокируем старт из-за этого
+        logger.error("Failed to set bot commands", exc_info=True)
 
     # Запускаем в фоне, чтобы не блокировать polling
     asyncio.create_task(
@@ -87,7 +93,16 @@ async def main():
 
     logger.info("Bot started OK")
 
-    await dp.start_polling(bot)
+    # Разовый сетевой сбой (например, при bot.me() перед началом polling)
+    # не должен убивать весь процесс — просто пробуем снова, без падения
+    # в systemd-рестарт (это медленнее и сбрасывает состояние диалогов).
+    while True:
+        try:
+            await dp.start_polling(bot)
+            break
+        except Exception:
+            logger.error("Polling crashed, retrying in 5s", exc_info=True)
+            await asyncio.sleep(5)
 
 
 if __name__ == "__main__":

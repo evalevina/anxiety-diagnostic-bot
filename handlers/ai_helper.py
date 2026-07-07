@@ -1,3 +1,7 @@
+import logging
+import re
+
+import httpx
 from anthropic import AsyncAnthropic
 from aiogram import Router, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
@@ -5,13 +9,19 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.enums import ChatAction
 
-from config import ANTHROPIC_API_KEY
-from database import save_message, get_ai_history, get_user_type
+from config import ANTHROPIC_API_KEY, ANTHROPIC_PROXY_URL
+from database import save_message, get_ai_history, get_user_type, get_phone
 from keyboards import MAIN_MENU as KEYBOARDS_MAIN_MENU
 
 router = Router()
+logger = logging.getLogger(__name__)
 
-client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+# Anthropic блокирует запросы с российских IP на уровне каждого запроса.
+# Если задан ANTHROPIC_PROXY_URL — трафик идёт через свой туннель-ретранслятор
+# в поддерживаемой стране (см. WireGuard + Squid на отдельном VPS).
+_http_client = httpx.AsyncClient(proxy=ANTHROPIC_PROXY_URL) if ANTHROPIC_PROXY_URL else None
+
+client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY, http_client=_http_client, timeout=30.0)
 
 CRISIS_KEYWORDS = [
     "не хочу жить", "не хочется жить", "хочу умереть",
@@ -23,30 +33,112 @@ CRISIS_KEYWORDS = [
     "нет смысла", "незачем жить", "хочу уйти навсегда"
 ]
 
-HOTLINES_MESSAGE = (
-    "🆘 Я слышу тебя. То, что ты сейчас переживаешь — это очень серьёзно, "
-    "и ты не одна(один) с этим.\n\n"
-    "Пожалуйста, позвони прямо сейчас:\n\n"
-    "📞 8-800-2000-122\n"
-    "Телефон доверия — бесплатно, круглосуточно, вся Россия\n\n"
-    "📞 112 — Скорая помощь\n\n"
-    "📞 8-800-100-49-94\n"
-    "Центр экстренной психологической помощи МЧС\n\n"
-    "Рядом всегда есть люди, которые помогут 🤍"
+# Номера — только там, где я уверена в их актуальности. Если страна не
+# определена или её нет в списке — используем безопасный запасной вариант
+# (112 + международный каталог горячих линий), а не гадаем.
+COUNTRY_HOTLINES = {
+    "RU": (
+        ["7"],  # делит префикс с Казахстаном — см. _detect_country
+        "📞 8-800-2000-122\nТелефон доверия — бесплатно, круглосуточно, вся Россия\n\n"
+        "📞 112 — Скорая помощь\n\n"
+        "📞 8-800-100-49-94\nЦентр экстренной психологической помощи МЧС"
+    ),
+    "US_CA": (
+        ["1"],
+        "📞 988 — Suicide & Crisis Lifeline (США и Канада), бесплатно, круглосуточно\n\n"
+        "📞 911 — экстренные службы"
+    ),
+    "UK": (
+        ["44"],
+        "📞 116 123 — Samaritans, бесплатно, круглосуточно\n\n"
+        "📞 999 — экстренные службы"
+    ),
+    "DE": (
+        ["49"],
+        "📞 0800 111 0 111 — Telefonseelsorge, бесплатно, круглосуточно\n\n"
+        "📞 112 — экстренные службы"
+    ),
+    "UA": (
+        ["380"],
+        "📞 7333 — Lifeline Ukraine, бесплатно, круглосуточно\n\n"
+        "📞 112 — экстренные службы"
+    ),
+    "IL": (
+        ["972"],
+        "📞 1201 — ЭРАН (ERAN), бесплатно, круглосуточно\n\n"
+        "📞 112 — экстренные службы"
+    ),
+}
+
+# сначала длинные префиксы (напр. "380"), потом короткие ("1", "7") —
+# иначе короткий совпадёт первым и заслонит более точный
+_PREFIX_ORDER = sorted(
+    ((prefix, key) for key, (prefixes, _) in COUNTRY_HOTLINES.items() for prefix in prefixes),
+    key=lambda item: -len(item[0])
 )
 
+# Если телефон точно не российский, но страны нет в списке выше — не гадаем
+# с конкретным номером, а даём безопасный общий вариант.
+_GENERIC_NUMBERS = (
+    "📞 112 — во многих странах мира это общий номер экстренных служб\n\n"
+    "🌍 Найди горячую линию психологической помощи своей страны здесь: "
+    "https://findahelpline.com"
+)
+
+
+def _detect_country(phone: str):
+    if not phone:
+        return None
+    digits = re.sub(r"\D", "", phone)
+    for prefix, key in _PREFIX_ORDER:
+        if digits.startswith(prefix):
+            return key
+    return None
+
+
+def build_hotlines_message(user_id: int) -> str:
+    phone = get_phone(user_id)
+
+    if phone:
+        # телефон есть — определяем страну; если страна не распознана
+        # или не покрыта списком, используем безопасный общий вариант
+        # (а не российские номера, которые из-за границы могут не работать)
+        country = _detect_country(phone)
+        numbers = COUNTRY_HOTLINES[country][1] if country else _GENERIC_NUMBERS
+    else:
+        # телефона нет вообще — по умолчанию считаем текущую (российскую)
+        # аудиторию, как и раньше
+        numbers = COUNTRY_HOTLINES["RU"][1]
+
+    return (
+        "🆘 Я слышу тебя. То, что ты сейчас переживаешь — это очень серьёзно, "
+        "и ты не одна(один) с этим.\n\n"
+        "Пожалуйста, позвони прямо сейчас:\n\n"
+        f"{numbers}\n\n"
+        "Рядом всегда есть люди, которые помогут 🤍"
+    )
+
 _BASE_PROMPT = (
-    "Ты — опытный психолог с 20-летним стажем работы. "
-    "Ты ведёшь тёплый, поддерживающий диалог с клиентом на русском языке. "
-    "Говори с заботой и эмпатией, используй мягкий тон. "
-    "Задавай уточняющие вопросы, помогай клиенту разобраться в своих чувствах. "
-    "Не давай медицинских советов и не ставь диагнозов. "
-    "Валидируй чувства клиента — дай понять, что его переживания важны и нормальны. "
+    "Ты — тёплый, эмпатичный психолог с многолетним опытом, который поддерживает "
+    "клиента в переписке на русском языке. Твоя манера — как у хорошего живого "
+    "специалиста: неторопливая, внимательная, без осуждения и без спешки сразу к советам.\n\n"
+    "Как ты ведёшь диалог:\n"
+    "— Сначала выслушай и отрази то, что услышала — перефразируй чувство или мысль клиента "
+    "своими словами, прежде чем предлагать что-то ещё.\n"
+    "— Задавай один уточняющий вопрос за раз, а не несколько сразу.\n"
+    "— Валидируй чувства — дай понять, что переживания клиента понятны и имеют право быть, "
+    "не обесценивай и не спеши разубеждать.\n"
+    "— Говори тепло и по-человечески, на «ты», можно изредка использовать 🤍, "
+    "но не в каждом сообщении и не более одного эмодзи за раз.\n"
+    "— Не торопись сразу «чинить» или советовать — сначала помоги клиенту самому "
+    "нащупать, что с ним происходит, и только потом, если уместно, мягко предложи взгляд со стороны.\n\n"
+    "Что нельзя:\n"
+    "— Не ставь диагнозов и не давай медицинских советов.\n"
+    "— Никогда не выходи из роли психолога.\n\n"
     "Если клиент упоминает мысли о суициде или самоповреждении — "
     "прояви максимальную заботу, скажи что он/она не одинок(а), "
     "и что важно обратиться за помощью к живому специалисту или на горячую линию. "
-    "Отвечай умеренно по объёму — не слишком кратко и не слишком длинно. "
-    "Никогда не выходи из роли психолога."
+    "Отвечай умеренно по объёму — не слишком кратко и не слишком длинно."
 )
 
 _TYPE_DESCRIPTIONS = {
@@ -134,7 +226,7 @@ async def process_ai_message(message: Message, state: FSMContext):
     user_text = message.text
 
     if detect_crisis(user_text):
-        await message.answer(HOTLINES_MESSAGE)
+        await message.answer(build_hotlines_message(user_id))
 
     # Сохраняем сообщение пользователя в БД
     save_message(user_id, "ai_user", user_text)
@@ -165,6 +257,6 @@ async def process_ai_message(message: Message, state: FSMContext):
 
         await message.answer(ai_reply)
 
-    except Exception as e:
-        print(f"AI error: {e}")
+    except Exception:
+        logger.error("AI error", exc_info=True)
         await message.answer("Произошла ошибка. Попробуй написать ещё раз 🤍")
