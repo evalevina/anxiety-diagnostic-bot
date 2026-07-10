@@ -10,7 +10,11 @@ from aiogram.types import (
 )
 
 from states.quiz_states import BookingState
-from database import save_booking, get_user_type, is_slot_booked, mark_booking_confirmed
+from database import (
+    save_booking, get_user_type, is_slot_booked, mark_booking_confirmed,
+    mark_booking_declined, get_taken_times, is_date_fully_blocked,
+    get_blocked_times, get_blocked_dates, toggle_blocked_time, toggle_blocked_day
+)
 from yookassa_payment import create_payment_amount
 from config import ADMIN_ID, SESSION_PRICE
 
@@ -41,26 +45,34 @@ TYPE_NAMES = {
 }
 
 
-def _calendar_kb(year: int, month: int) -> InlineKeyboardMarkup:
+def _calendar_kb(year: int, month: int, admin: bool = False) -> InlineKeyboardMarkup:
     today = date.today()
     max_date = today + timedelta(days=60)
 
+    m_prefix = "adm_m_" if admin else "bk_m_"
+    d_prefix = "adm_d_" if admin else "bk_d_"
+
     prev = date(year, month, 1) - timedelta(days=1)
     nxt_first = (date(year, month, 28) + timedelta(days=4)).replace(day=1)
+    month_end = nxt_first - timedelta(days=1)
+
+    blocked_dates = get_blocked_dates(
+        date(year, month, 1).strftime("%Y%m%d"), month_end.strftime("%Y%m%d")
+    )
 
     rows = []
 
     # Navigation row
     nav = []
     if (year, month) > (today.year, today.month):
-        nav.append(InlineKeyboardButton(text="←", callback_data=f"bk_m_{prev.year}{prev.month:02d}"))
+        nav.append(InlineKeyboardButton(text="←", callback_data=f"{m_prefix}{prev.year}{prev.month:02d}"))
     else:
         nav.append(InlineKeyboardButton(text=" ", callback_data="bk_noop"))
 
     nav.append(InlineKeyboardButton(text=f"{MONTH_NOM[month]} {year}", callback_data="bk_noop"))
 
     if nxt_first <= max_date.replace(day=1):
-        nav.append(InlineKeyboardButton(text="→", callback_data=f"bk_m_{nxt_first.year}{nxt_first.month:02d}"))
+        nav.append(InlineKeyboardButton(text="→", callback_data=f"{m_prefix}{nxt_first.year}{nxt_first.month:02d}"))
     else:
         nav.append(InlineKeyboardButton(text=" ", callback_data="bk_noop"))
 
@@ -81,22 +93,35 @@ def _calendar_kb(year: int, month: int) -> InlineKeyboardMarkup:
                 row.append(InlineKeyboardButton(text=" ", callback_data="bk_noop"))
             else:
                 d = date(year, month, day_num)
+                ds = d.strftime("%Y%m%d")
                 if d <= today or d > max_date:
                     row.append(InlineKeyboardButton(text="·", callback_data="bk_noop"))
+                elif ds in blocked_dates:
+                    if admin:
+                        row.append(InlineKeyboardButton(text=f"🚫{day_num}", callback_data=f"{d_prefix}{ds}"))
+                    else:
+                        row.append(InlineKeyboardButton(text="·", callback_data="bk_noop"))
                 else:
                     row.append(InlineKeyboardButton(
                         text=str(day_num),
-                        callback_data=f"bk_d_{year}{month:02d}{day_num:02d}"
+                        callback_data=f"{d_prefix}{ds}"
                     ))
         rows.append(row)
 
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def _time_kb(date_str: str) -> InlineKeyboardMarkup:
+def _time_kb(date_str: str):
+    """Возвращает клавиатуру со свободными слотами или None, если на этот день не осталось мест."""
+    unavailable = set(get_taken_times(date_str)) | set(get_blocked_times(date_str))
+    free_slots = [s for s in SLOTS if s not in unavailable]
+
+    if not free_slots:
+        return None
+
     rows = []
     row = []
-    for slot in SLOTS:
+    for slot in free_slots:
         row.append(InlineKeyboardButton(text=slot, callback_data=f"bk_t_{date_str}_{slot}"))
         if len(row) == 4:
             rows.append(row)
@@ -104,6 +129,35 @@ def _time_kb(date_str: str) -> InlineKeyboardMarkup:
     if row:
         rows.append(row)
     rows.append([InlineKeyboardButton(text="← Другой день", callback_data="bk_back")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _admin_day_kb(date_str: str) -> InlineKeyboardMarkup:
+    taken = set(get_taken_times(date_str))
+    blocked_times = set(get_blocked_times(date_str))
+    day_blocked = is_date_fully_blocked(date_str)
+
+    rows = []
+
+    if not day_blocked:
+        row = []
+        for slot in SLOTS:
+            if slot in taken:
+                label, cb = f"👤 {slot}", "bk_noop"
+            elif slot in blocked_times:
+                label, cb = f"🚫 {slot}", f"adm_t_{date_str}_{slot}"
+            else:
+                label, cb = f"✅ {slot}", f"adm_t_{date_str}_{slot}"
+            row.append(InlineKeyboardButton(text=label, callback_data=cb))
+            if len(row) == 4:
+                rows.append(row)
+                row = []
+        if row:
+            rows.append(row)
+
+    day_label = "✅ Открыть весь день" if day_blocked else "🚫 Закрыть весь день"
+    rows.append([InlineKeyboardButton(text=day_label, callback_data=f"adm_day_{date_str}")])
+    rows.append([InlineKeyboardButton(text="⬅️ К календарю", callback_data="adm_back")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -153,6 +207,16 @@ async def pick_date(callback: CallbackQuery, state: FSMContext):
     ds = callback.data[5:]  # e.g. "20260708"
     year, month, day = int(ds[:4]), int(ds[4:6]), int(ds[6:])
     d = date(year, month, day)
+
+    if is_date_fully_blocked(ds):
+        await callback.answer("Этот день недоступен для записи", show_alert=True)
+        return
+
+    kb = _time_kb(ds)
+    if kb is None:
+        await callback.answer("На этот день все места заняты — выбери другой день", show_alert=True)
+        return
+
     day_name = DAY_NAMES[d.weekday()]
     date_pretty = f"{day} {MONTH_GEN[month]}, {day_name}"
 
@@ -161,7 +225,7 @@ async def pick_date(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
         f"📅 *{day} {MONTH_NOM[month]}* — выбери удобное время:",
         parse_mode="Markdown",
-        reply_markup=_time_kb(ds)
+        reply_markup=kb
     )
     await callback.answer()
 
@@ -199,6 +263,18 @@ async def receive_concern(message: Message, state: FSMContext):
     date_pretty = user_data.get("booking_date_pretty", date_str)
     await state.clear()
 
+    # Пока человек писал, что его беспокоит, слот мог занять кто-то другой
+    # или его мог закрыть админ — перепроверяем перед сохранением.
+    unavailable = set(get_taken_times(date_str)) | set(get_blocked_times(date_str))
+    if is_date_fully_blocked(date_str) or time_str in unavailable:
+        today = date.today()
+        await message.answer(
+            "😔 Похоже, это время только что заняли или закрыли.\n\n"
+            "Выбери другое — Ева будет рада найти удобный вариант 🤍",
+            reply_markup=_calendar_kb(today.year, today.month)
+        )
+        return
+
     user_id    = message.from_user.id
     first_name = message.from_user.first_name or ""
     username   = f"@{message.from_user.username}" if message.from_user.username else "без username"
@@ -218,7 +294,7 @@ async def receive_concern(message: Message, state: FSMContext):
     # Notification to Eva
     admin_kb = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"bk_ok_{user_id}_{date_str}_{time_str}"),
-        InlineKeyboardButton(text="❌ Отклонить",   callback_data=f"bk_no_{user_id}"),
+        InlineKeyboardButton(text="❌ Отклонить",   callback_data=f"bk_no_{user_id}_{date_str}_{time_str}"),
     ]])
 
     await message.bot.send_message(
@@ -307,7 +383,14 @@ async def admin_reject(callback: CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
         await callback.answer()
         return
-    user_id = int(callback.data[6:])
+    # bk_no_{user_id}_{date_str}_{time_str}
+    parts = callback.data[6:].split("_")
+    user_id  = int(parts[0])
+    date_str = parts[1]
+    time_str = parts[2]
+
+    mark_booking_declined(user_id, date_str, time_str)
+
     today = date.today()
 
     await callback.bot.send_message(
@@ -319,3 +402,94 @@ async def admin_reject(callback: CallbackQuery):
 
     await callback.message.edit_text(callback.message.text + "\n\n❌ Отклонено")
     await callback.answer("Отказ отправлен")
+
+
+# ── Admin: manage calendar (block/unblock dates & times) ───────────────────────
+
+ADMIN_CAL_INTRO = (
+    "📅 Управление календарём записи\n\n"
+    "✅ — время свободно · 🚫 — закрыто тобой · 👤 — уже занято клиентом\n"
+    "Нажми на дату, чтобы закрыть весь день или отдельные слоты."
+)
+
+
+@booking_router.callback_query(F.data == "admin_calendar")
+async def admin_calendar_open(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer()
+        return
+    today = date.today()
+    await callback.message.answer(
+        ADMIN_CAL_INTRO,
+        reply_markup=_calendar_kb(today.year, today.month, admin=True)
+    )
+    await callback.answer()
+
+
+@booking_router.callback_query(F.data.startswith("adm_m_"))
+async def admin_navigate_month(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer()
+        return
+    ym = callback.data[6:]
+    year, month = int(ym[:4]), int(ym[4:])
+    await callback.message.edit_reply_markup(reply_markup=_calendar_kb(year, month, admin=True))
+    await callback.answer()
+
+
+@booking_router.callback_query(F.data.startswith("adm_d_"))
+async def admin_pick_day(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer()
+        return
+    ds = callback.data[6:]
+    year, month, day = int(ds[:4]), int(ds[4:6]), int(ds[6:])
+    await callback.message.edit_text(
+        f"📅 {day} {MONTH_GEN[month]} — управление слотами:",
+        reply_markup=_admin_day_kb(ds)
+    )
+    await callback.answer()
+
+
+@booking_router.callback_query(F.data.startswith("adm_t_"))
+async def admin_toggle_time(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer()
+        return
+    payload = callback.data[6:]  # "20260715_14:00"
+    date_str, time_str = payload.split("_", 1)
+
+    now_blocked = toggle_blocked_time(date_str, time_str)
+
+    await callback.message.edit_reply_markup(reply_markup=_admin_day_kb(date_str))
+    await callback.answer("🚫 Слот закрыт" if now_blocked else "✅ Слот открыт")
+
+
+@booking_router.callback_query(F.data.startswith("adm_day_"))
+async def admin_toggle_day(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer()
+        return
+    date_str = callback.data[8:]
+    year, month, day = int(date_str[:4]), int(date_str[4:6]), int(date_str[6:])
+
+    now_blocked = toggle_blocked_day(date_str)
+
+    await callback.message.edit_text(
+        f"📅 {day} {MONTH_GEN[month]} — управление слотами:",
+        reply_markup=_admin_day_kb(date_str)
+    )
+    await callback.answer("🚫 День закрыт" if now_blocked else "✅ День открыт")
+
+
+@booking_router.callback_query(F.data == "adm_back")
+async def admin_back_to_calendar(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer()
+        return
+    today = date.today()
+    await callback.message.edit_text(
+        ADMIN_CAL_INTRO,
+        reply_markup=_calendar_kb(today.year, today.month, admin=True)
+    )
+    await callback.answer()

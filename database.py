@@ -136,6 +136,17 @@ def init_db():
         except Exception:
             pass
 
+    # закрытые админом даты/слоты записи (NULL time_str = закрыт весь день)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS blocked_slots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date_str TEXT NOT NULL,
+        time_str TEXT,
+        created_at INTEGER
+    )
+    """)
+
     # рефералы
 
     for col in ["referred_by INTEGER", "referral_count INTEGER DEFAULT 0",
@@ -1054,6 +1065,155 @@ def mark_booking_confirmed(user_id, date_str, time_str):
 
     conn.commit()
     conn.close()
+
+
+def mark_booking_declined(user_id, date_str, time_str):
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE bookings SET status='declined'
+    WHERE id = (
+        SELECT id FROM bookings
+        WHERE user_id=? AND date_str=? AND time_str=? AND status='pending'
+        ORDER BY created_at DESC LIMIT 1
+    )
+    """, (user_id, date_str, time_str))
+
+    conn.commit()
+    conn.close()
+
+
+def get_taken_times(date_str):
+    """Времена на дату, уже занятые бронированиями (pending или confirmed) —
+    чтобы не показывать клиентам слот, который кто-то уже запросил."""
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT time_str FROM bookings
+    WHERE date_str=? AND status IN ('pending', 'confirmed')
+    """, (date_str,))
+
+    rows = [r[0] for r in cursor.fetchall()]
+
+    conn.close()
+
+    return rows
+
+
+# ---------------- ЗАКРЫТЫЕ АДМИНОМ ДАТЫ/СЛОТЫ ----------------
+
+
+def is_date_fully_blocked(date_str):
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT COUNT(*) FROM blocked_slots WHERE date_str=? AND time_str IS NULL",
+        (date_str,)
+    )
+    count = cursor.fetchone()[0]
+
+    conn.close()
+
+    return count > 0
+
+
+def get_blocked_times(date_str):
+    """Конкретные закрытые админом времена на дату (без учёта блокировки всего дня)."""
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT time_str FROM blocked_slots WHERE date_str=? AND time_str IS NOT NULL",
+        (date_str,)
+    )
+    rows = [r[0] for r in cursor.fetchall()]
+
+    conn.close()
+
+    return rows
+
+
+def get_blocked_dates(start_date_str, end_date_str):
+    """Даты (закрытые целиком), попадающие в диапазон [start, end] — для отрисовки календаря
+    одним запросом на месяц вместо запроса на каждый день."""
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT date_str FROM blocked_slots
+    WHERE time_str IS NULL AND date_str BETWEEN ? AND ?
+    """, (start_date_str, end_date_str))
+    rows = {r[0] for r in cursor.fetchall()}
+
+    conn.close()
+
+    return rows
+
+
+def toggle_blocked_time(date_str, time_str):
+    """Переключает блокировку конкретного времени на дату. Возвращает True, если теперь закрыто."""
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT id FROM blocked_slots WHERE date_str=? AND time_str=?",
+        (date_str, time_str)
+    )
+    row = cursor.fetchone()
+
+    if row:
+        cursor.execute("DELETE FROM blocked_slots WHERE id=?", (row[0],))
+        result = False
+    else:
+        cursor.execute(
+            "INSERT INTO blocked_slots (date_str, time_str, created_at) VALUES (?, ?, ?)",
+            (date_str, time_str, int(time.time()))
+        )
+        result = True
+
+    conn.commit()
+    conn.close()
+
+    return result
+
+
+def toggle_blocked_day(date_str):
+    """Переключает блокировку всего дня. Возвращает True, если теперь закрыт.
+    При закрытии дня точечные блокировки времени на эту дату больше не нужны — чистим их."""
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT id FROM blocked_slots WHERE date_str=? AND time_str IS NULL",
+        (date_str,)
+    )
+    row = cursor.fetchone()
+
+    if row:
+        cursor.execute("DELETE FROM blocked_slots WHERE id=?", (row[0],))
+        result = False
+    else:
+        cursor.execute("DELETE FROM blocked_slots WHERE date_str=? AND time_str IS NOT NULL", (date_str,))
+        cursor.execute(
+            "INSERT INTO blocked_slots (date_str, time_str, created_at) VALUES (?, NULL, ?)",
+            (date_str, int(time.time()))
+        )
+        result = True
+
+    conn.commit()
+    conn.close()
+
+    return result
 
 
 # ---------------- РЕФЕРАЛЫ ----------------

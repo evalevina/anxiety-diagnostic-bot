@@ -103,6 +103,13 @@ admin_keyboard = InlineKeyboardMarkup(
                 text="🎯 Рассылка по типу",
                 callback_data="admin_broadcast_type"
             )
+        ],
+
+        [
+            InlineKeyboardButton(
+                text="📅 Календарь записи",
+                callback_data="admin_calendar"
+            )
         ]
     ]
 )
