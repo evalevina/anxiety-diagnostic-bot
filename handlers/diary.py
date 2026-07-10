@@ -1,9 +1,10 @@
+import asyncio
 from datetime import datetime
 
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
-    Message, CallbackQuery,
+    Message, CallbackQuery, BufferedInputFile,
     InlineKeyboardMarkup, InlineKeyboardButton
 )
 
@@ -15,6 +16,7 @@ from database import (
 )
 from handlers.thought_record import diary_cbt_button
 from handlers.consent import ensure_consent
+from chart import render_diary_chart
 
 diary_router = Router()
 
@@ -148,8 +150,36 @@ async def _save_and_respond(user_id, state, note, message):
                 "Если захочешь поговорить — нажми «📅 Записаться» 🤍"
             )
 
-    reply_markup = diary_cbt_button(diary_id, score) if get_user_bought(user_id) else None
+    if get_user_bought(user_id):
+        reply_markup = diary_cbt_button(diary_id, score)
+        reply_markup.inline_keyboard.append([_chart_button()])
+    else:
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=[[_chart_button()]])
     await message.answer(reply, parse_mode="Markdown", reply_markup=reply_markup)
+
+
+def _chart_button():
+    return InlineKeyboardButton(text="📈 График за месяц", callback_data="diary_chart")
+
+
+@diary_router.callback_query(F.data == "diary_chart")
+async def show_diary_chart(callback: CallbackQuery):
+    await callback.answer()
+    user_id = callback.from_user.id
+
+    history = get_diary_history(user_id, days=30)
+
+    loop = asyncio.get_running_loop()
+    png = await loop.run_in_executor(None, render_diary_chart, history)
+
+    if not png:
+        await callback.message.answer("Пока рано — начни с первой записи в дневнике 🌱")
+        return
+
+    await callback.message.answer_photo(
+        BufferedInputFile(png, filename="anxiety_chart.png"),
+        caption="📈 Твой прогресс за последние 30 дней 🤍"
+    )
 
 
 def _build_trend(history):

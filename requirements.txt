@@ -6,3 +6,4 @@ openpyxl
 aiohttp
 yookassa
 httpx
+Pillow
