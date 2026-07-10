@@ -209,7 +209,7 @@ async def funnel_worker(bot):
 
                 elif message_type == "upsell2_7d":
 
-                    if GROUP_PROGRAM_LINK:
+                    if GROUP_PROGRAM_LINK and GROUP_PROGRAM_LINK != "https://example.com":
                         keyboard = InlineKeyboardMarkup(
                             inline_keyboard=[
                                 [InlineKeyboardButton(text=f"💎 Узнать подробнее", url=GROUP_PROGRAM_LINK)],
@@ -245,6 +245,7 @@ async def funnel_worker(bot):
                                 [InlineKeyboardButton(text="💳 Купить за 1490₽", url=payment_url)],
                                 [InlineKeyboardButton(text="✅ Я оплатил(а)", callback_data="paid")],
                                 [InlineKeyboardButton(text="🤔 Подумать", callback_data="think")],
+                                [InlineKeyboardButton(text="📄 Условия оферты", url="https://levinaeva.com/oferta.html")],
                             ]
                         )
 
@@ -261,7 +262,7 @@ async def funnel_worker(bot):
                             "━━━━━━━━━━━━\n"
                             "💰 Обычная цена: 3 490 ₽\n"
                             "🔥 Сейчас: 1 490 ₽\n"
-                            "⏰ Цена действует 24 часа после прохождения бота\n"
+                            "⏰ Цена действует 72 часа после прохождения бота\n"
                             "━━━━━━━━━━━━"
                         )
 

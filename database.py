@@ -31,7 +31,8 @@ def init_db():
 
     for col in ["first_name TEXT", "last_name TEXT", "phone TEXT",
                 "source TEXT", "saw_offer INTEGER DEFAULT 0",
-                "saw_offer_at INTEGER", "started_quiz INTEGER DEFAULT 0"]:
+                "saw_offer_at INTEGER", "started_quiz INTEGER DEFAULT 0",
+                "health_consent INTEGER DEFAULT 0", "health_consent_at INTEGER"]:
         try:
             cursor.execute(f"ALTER TABLE users ADD COLUMN {col}")
         except Exception:
@@ -128,6 +129,12 @@ def init_db():
         created_at INTEGER
     )
     """)
+
+    for col in ["date_str TEXT", "time_str TEXT", "status TEXT DEFAULT 'pending'"]:
+        try:
+            cursor.execute(f"ALTER TABLE bookings ADD COLUMN {col}")
+        except Exception:
+            pass
 
     # рефералы
 
@@ -338,7 +345,8 @@ def reset_user_profile(user_id):
     cursor.execute("""
     UPDATE users
     SET anxiety_type=NULL, finished=0, bought=0, thinking=0,
-        saw_offer=0, saw_offer_at=NULL, started_quiz=0
+        saw_offer=0, saw_offer_at=NULL, started_quiz=0,
+        health_consent=0, health_consent_at=NULL
     WHERE user_id=?
     """, (user_id,))
 
@@ -388,6 +396,32 @@ def get_phone(user_id):
     conn.close()
 
     return row[0] if row and row[0] else None
+
+
+def save_health_consent(user_id):
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE users SET health_consent=1, health_consent_at=? WHERE user_id=?
+    """, (int(time.time()), user_id))
+
+    conn.commit()
+    conn.close()
+
+
+def has_health_consent(user_id):
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT health_consent FROM users WHERE user_id=?", (user_id,))
+    row = cursor.fetchone()
+
+    conn.close()
+
+    return bool(row and row[0])
 
 
 def update_result(user_id, anxiety_type):
@@ -972,15 +1006,51 @@ def get_reviews(limit=20):
 # ---------------- ЗАПИСИ НА КОНСУЛЬТАЦИЮ ----------------
 
 
-def save_booking(user_id, preferred_time):
+def save_booking(user_id, preferred_time, date_str=None, time_str=None):
 
     conn = connect()
     cursor = conn.cursor()
 
     cursor.execute("""
-    INSERT INTO bookings (user_id, preferred_time, created_at)
-    VALUES (?, ?, ?)
-    """, (user_id, preferred_time, int(time.time())))
+    INSERT INTO bookings (user_id, preferred_time, created_at, date_str, time_str, status)
+    VALUES (?, ?, ?, ?, ?, 'pending')
+    """, (user_id, preferred_time, int(time.time()), date_str, time_str))
+
+    conn.commit()
+    conn.close()
+
+
+def is_slot_booked(date_str, time_str):
+    """Есть ли уже подтверждённая запись на этот день/время (для защиты от двойного бронирования)."""
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT COUNT(*) FROM bookings
+    WHERE date_str=? AND time_str=? AND status='confirmed'
+    """, (date_str, time_str))
+
+    count = cursor.fetchone()[0]
+
+    conn.close()
+
+    return count > 0
+
+
+def mark_booking_confirmed(user_id, date_str, time_str):
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE bookings SET status='confirmed'
+    WHERE id = (
+        SELECT id FROM bookings
+        WHERE user_id=? AND date_str=? AND time_str=? AND status='pending'
+        ORDER BY created_at DESC LIMIT 1
+    )
+    """, (user_id, date_str, time_str))
 
     conn.commit()
     conn.close()

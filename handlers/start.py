@@ -146,6 +146,7 @@ async def returning_buy(callback: CallbackQuery):
             [InlineKeyboardButton(text=f"💳 Оплатить {price}₽", url=payment_url)],
             [InlineKeyboardButton(text="✅ Я оплатил(а)", callback_data="paid")],
             [InlineKeyboardButton(text="🤔 Подумать ещё", callback_data="think")],
+            [InlineKeyboardButton(text="📄 Условия оферты", url="https://levinaeva.com/oferta.html")],
         ]
     )
 

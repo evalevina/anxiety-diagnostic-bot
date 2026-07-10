@@ -14,6 +14,7 @@ from database import (
     get_diary_streak, get_user_bought
 )
 from handlers.thought_record import diary_cbt_button
+from handlers.consent import ensure_consent
 
 diary_router = Router()
 
@@ -46,6 +47,8 @@ def _tag_keyboard():
 
 @diary_router.message(F.text == "📔 Дневник")
 async def cmd_diary(message: Message):
+    if not await ensure_consent(message, message.from_user.id):
+        return
     await message.answer(
         "📔 Как ты сейчас?\n\n"
         "Оцени уровень тревоги — от 1 до 10:\n\n"

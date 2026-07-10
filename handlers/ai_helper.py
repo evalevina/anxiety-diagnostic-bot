@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 
@@ -12,6 +13,7 @@ from aiogram.enums import ChatAction
 from config import ANTHROPIC_API_KEY, ANTHROPIC_PROXY_URL
 from database import save_message, get_ai_history, get_user_type, get_phone
 from keyboards import MAIN_MENU as KEYBOARDS_MAIN_MENU
+from handlers.consent import ensure_consent
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -188,9 +190,36 @@ def detect_crisis(text: str) -> bool:
     return any(keyword in text_lower for keyword in CRISIS_KEYWORDS)
 
 
+# Обезличивание исходящей копии перед трансграничной передачей в Claude
+# (Anthropic, США). Правит только то, что летит в API — в локальной БД
+# (save_message) остаётся полный исходный текст для истории клиента и CRM.
+# Регулярки, не NLP: ловят структурированные данные (телефон, email) и
+# явное самопредставление по имени надёжно, но не гарантируют 100% —
+# имя, упомянутое не в этих двух оборотах, не поймается.
+_EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+_PHONE_RE = re.compile(r"\+?\d[\d\-\s()]{5,}\d")
+_NAME_INTRO_RE = re.compile(
+    r"(меня зовут|зовут меня)\s+([А-ЯЁA-Z][а-яёa-z]+)",
+    re.IGNORECASE
+)
+
+
+def depersonalize(text: str) -> str:
+    if not text:
+        return text
+    text = _EMAIL_RE.sub("[email]", text)
+    text = _PHONE_RE.sub("[телефон]", text)
+    text = _NAME_INTRO_RE.sub(lambda m: f"{m.group(1)} [имя]", text)
+    return text
+
+
 @router.message(F.text == "🤖 AI - помощник")
 async def start_ai_chat(message: Message, state: FSMContext):
     user_id = message.from_user.id
+
+    if not await ensure_consent(message, user_id):
+        return
+
     anxiety_type = get_user_type(user_id)
     system_prompt = _build_system_prompt(anxiety_type)
 
@@ -204,7 +233,9 @@ async def start_ai_chat(message: Message, state: FSMContext):
 
     await message.answer(
         "Привет 🤍\n\n"
-        "Я здесь, чтобы выслушать тебя и поддержать.\n\n"
+        "Маленькая честность на старте: я — ИИ-помощник, а не сама Ева и не дипломированный "
+        "специалист 🌿 Поэтому не заменяю живую терапию или помощь врача — но я здесь, чтобы "
+        "внимательно выслушать тебя и побыть рядом.\n\n"
         "Расскажи, что тебя беспокоит?",
         reply_markup=exit_kb
     )
@@ -231,32 +262,62 @@ async def process_ai_message(message: Message, state: FSMContext):
     # Сохраняем сообщение пользователя в БД
     save_message(user_id, "ai_user", user_text)
 
-    # Загружаем историю из БД (последние 20 сообщений)
+    # Загружаем историю из БД (последние 20 сообщений) — полную, для
+    # локального использования. Наружу в Claude уходит отдельно
+    # обезличенная копия (см. depersonalize) — сама история в БД не меняется.
     history = get_ai_history(user_id, limit=20)
+    history_for_api = [
+        {"role": h["role"], "content": depersonalize(h["content"])}
+        for h in history
+    ]
 
     data = await state.get_data()
     system_prompt = data.get("system_prompt", _BASE_PROMPT)
 
     try:
+        # Индикатор "печатает" не критичен — не ждём общий таймаут сессии
+        # (60с), чтобы сбой здесь не задерживал обращение к Claude.
         await message.bot.send_chat_action(
             chat_id=message.chat.id,
-            action=ChatAction.TYPING
+            action=ChatAction.TYPING,
+            request_timeout=5
         )
+    except Exception as e:
+        logger.warning("send_chat_action failed: %s", e)
 
-        response = await client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=1024,
-            system=system_prompt,
-            messages=history
-        )
+    # Первый запрос через релей-туннель иногда не проходит на "холодном"
+    # соединении (обрыв/таймаут), а повторный сразу проходит — поэтому
+    # ретраим сами, чтобы клиент не видел ошибку и не переспрашивал.
+    ai_reply = None
+    last_error = None
+    for attempt in range(3):
+        try:
+            response = await client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=1024,
+                system=system_prompt,
+                messages=history_for_api
+            )
+            ai_reply = response.content[0].text
+            break
+        except Exception as e:
+            last_error = e
+            logger.warning("AI attempt %d failed: %s", attempt + 1, e)
+            if attempt < 2:
+                await asyncio.sleep(1.5)
 
-        ai_reply = response.content[0].text
+    if ai_reply is None:
+        logger.error("AI error after retries", exc_info=last_error)
+        try:
+            await message.answer("Произошла ошибка. Попробуй написать ещё раз 🤍")
+        except Exception as e:
+            logger.warning("Failed to send error message to user: %s", e)
+        return
 
-        # Сохраняем ответ бота в БД
-        save_message(user_id, "ai_bot", ai_reply)
+    # Сохраняем ответ бота в БД
+    save_message(user_id, "ai_bot", ai_reply)
 
+    try:
         await message.answer(ai_reply)
-
-    except Exception:
-        logger.error("AI error", exc_info=True)
-        await message.answer("Произошла ошибка. Попробуй написать ещё раз 🤍")
+    except Exception as e:
+        logger.warning("Failed to send AI reply to user: %s", e)

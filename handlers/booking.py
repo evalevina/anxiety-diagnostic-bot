@@ -1,4 +1,6 @@
+import asyncio
 import calendar
+import logging
 from datetime import date, timedelta
 
 from aiogram import Router, F
@@ -8,11 +10,12 @@ from aiogram.types import (
 )
 
 from states.quiz_states import BookingState
-from database import save_booking, get_user_type
+from database import save_booking, get_user_type, is_slot_booked, mark_booking_confirmed
 from yookassa_payment import create_payment_amount
 from config import ADMIN_ID, SESSION_PRICE
 
 booking_router = Router()
+logger = logging.getLogger(__name__)
 
 SLOTS = ["10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00", "18:00"]
 
@@ -203,7 +206,7 @@ async def receive_concern(message: Message, state: FSMContext):
     anxiety_type = get_user_type(user_id)
     type_label   = TYPE_NAMES.get(anxiety_type, "не определён") if anxiety_type else "не определён"
 
-    save_booking(user_id, f"{date_pretty} в {time_str}")
+    save_booking(user_id, f"{date_pretty} в {time_str}", date_str, time_str)
 
     # Message to user
     await message.answer(
@@ -247,21 +250,53 @@ async def admin_confirm(callback: CallbackQuery):
     year, month, day = int(date_str[:4]), int(date_str[4:6]), int(date_str[6:])
     date_display = f"{day} {MONTH_GEN[month]}"
 
-    payment_url = create_payment_amount(user_id, SESSION_PRICE, "Сессия с психологом", "session")
-    pay_kb = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text=f"💳 Оплатить {SESSION_PRICE}₽", url=payment_url)
-    ]])
+    # Другая заявка на этот же день/время уже подтверждена — не даём
+    # случайно продать один и тот же слот дважды.
+    if is_slot_booked(date_str, time_str):
+        await callback.answer(
+            "⚠️ Это время уже подтверждено другому клиенту — отклони эту заявку или выбери другой слот",
+            show_alert=True
+        )
+        return
 
-    await callback.bot.send_message(
-        user_id,
-        f"✅ Запись подтверждена!\n\n"
-        f"📅 {date_display} в {time_str}\n\n"
-        f"Осталось оплатить сессию — {SESSION_PRICE}₽.\n"
-        f"После оплаты жду тебя 🤍",
-        reply_markup=pay_kb
-    )
+    try:
+        # create_payment_amount — синхронный запрос к ЮKassa; уводим в executor,
+        # чтобы не блокировать event loop бота на время сетевого запроса.
+        loop = asyncio.get_running_loop()
+        payment_url = await loop.run_in_executor(
+            None, create_payment_amount, user_id, SESSION_PRICE, "Сессия с психологом", "session"
+        )
+    except Exception as e:
+        logger.error("Booking payment link creation failed: %s", e)
+        await callback.answer("Не удалось создать ссылку на оплату, попробуй ещё раз через минуту", show_alert=True)
+        return
 
-    await callback.message.edit_text(callback.message.text + "\n\n✅ Подтверждено")
+    pay_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"💳 Оплатить {SESSION_PRICE}₽", url=payment_url)],
+        [InlineKeyboardButton(text="📄 Условия оферты", url="https://levinaeva.com/oferta.html")],
+    ])
+
+    try:
+        await callback.bot.send_message(
+            user_id,
+            f"✅ Запись подтверждена!\n\n"
+            f"📅 {date_display} в {time_str}\n\n"
+            f"Осталось оплатить сессию — {SESSION_PRICE}₽.\n"
+            f"После оплаты жду тебя 🤍",
+            reply_markup=pay_kb
+        )
+    except Exception as e:
+        logger.warning("Failed to notify client about booking confirmation: %s", e)
+        await callback.answer("Клиенту не удалось отправить подтверждение (мог заблокировать бота)", show_alert=True)
+        return
+
+    mark_booking_confirmed(user_id, date_str, time_str)
+
+    try:
+        await callback.message.edit_text(callback.message.text + "\n\n✅ Подтверждено")
+    except Exception as e:
+        logger.warning("Failed to edit admin confirmation message: %s", e)
+
     await callback.answer("Подтверждение отправлено")
 
 

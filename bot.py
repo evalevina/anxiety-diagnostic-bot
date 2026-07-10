@@ -4,12 +4,14 @@ import os
 import traceback
 
 from aiogram import Bot, Dispatcher
-from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.types import ErrorEvent, BotCommand
 
 from config import BOT_TOKEN, ADMIN_ID
+from telegram_session import RetryingAiohttpSession
+from fsm_storage import SQLiteStorage
 
 from handlers.start import router as start_router
+from handlers.consent import router as consent_router
 from handlers.quiz import router as quiz_router
 from handlers.result import router as result_router
 from handlers.admin import router as admin_router
@@ -19,6 +21,7 @@ from handlers.diary import diary_router
 from handlers.thought_record import thought_router
 from handlers.referral import referral_router
 from handlers.reviews import reviews_router
+from handlers.fallback import router as fallback_router
 
 from database import init_db
 from funnel_worker import start_funnel_worker
@@ -36,12 +39,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-bot = Bot(token=BOT_TOKEN, session=AiohttpSession(timeout=60))
+bot = Bot(token=BOT_TOKEN, session=RetryingAiohttpSession(timeout=60))
 
-dp = Dispatcher()
+dp = Dispatcher(storage=SQLiteStorage())
 
 # Подключаем роутеры
 dp.include_router(start_router)
+dp.include_router(consent_router)
 dp.include_router(quiz_router)
 dp.include_router(result_router)
 dp.include_router(admin_router)
@@ -51,6 +55,7 @@ dp.include_router(diary_router)
 dp.include_router(thought_router)
 dp.include_router(referral_router)
 dp.include_router(reviews_router)
+dp.include_router(fallback_router)
 
 
 @dp.errors()

@@ -4,6 +4,7 @@ import os
 import asyncio
 
 from aiogram import Router, F
+from aiogram.fsm.context import FSMContext
 
 logger = logging.getLogger(__name__)
 from aiogram.types import (
@@ -181,9 +182,23 @@ async def admin_users(callback: CallbackQuery):
 
     users = get_user_ids()
 
-    await callback.message.answer(
-        f"👥 Пользователи:\n\n{users}"
-    )
+    if not users:
+        await callback.message.answer("👥 Пользователей пока нет")
+        await callback.answer()
+        return
+
+    # Telegram режет сообщения на 4096 символов — при росте базы список
+    # одним сообщением рано или поздно перестанет отправляться. Бьём на
+    # порции по 200 ID (для больших выгрузок всё равно лучше Excel).
+    chunk_size = 200
+    total = len(users)
+    for i in range(0, total, chunk_size):
+        chunk = users[i:i + chunk_size]
+        if total > chunk_size:
+            header = f"👥 Пользователи ({i + 1}–{i + len(chunk)} из {total}):\n\n"
+        else:
+            header = f"👥 Пользователи ({total}):\n\n"
+        await callback.message.answer(header + "\n".join(str(u) for u in chunk))
 
     await callback.answer()
 
@@ -455,11 +470,12 @@ async def admin_backup(callback: CallbackQuery):
 # ---------- СБРОС ПРОФИЛЯ (ТЕСТ) ----------
 
 @router.message(Command("reset_me"))
-async def reset_me(message: Message):
+async def reset_me(message: Message, state: FSMContext):
 
     if message.from_user.id != ADMIN_ID:
         return
 
+    await state.clear()
     reset_user_profile(message.from_user.id)
 
     await message.answer(

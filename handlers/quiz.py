@@ -14,6 +14,7 @@ from aiogram.fsm.context import FSMContext
 
 from database import save_message, save_phone, add_funnel_task, has_pending_quiz_reminder, set_started_quiz
 from states.quiz_states import QuizState
+from handlers.consent import ensure_consent
 
 router = Router()
 
@@ -113,6 +114,10 @@ QUESTIONS = [
 
 @router.callback_query(F.data == "start_quiz")
 async def start_quiz(callback: CallbackQuery, state: FSMContext):
+
+    if not await ensure_consent(callback.message, callback.from_user.id):
+        await callback.answer()
+        return
 
     set_started_quiz(callback.from_user.id)
     save_message(callback.from_user.id, "user", "✅ Да, поехали (начал тест)")

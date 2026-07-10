@@ -272,15 +272,16 @@ async def show_result(message, state: FSMContext):
     )
 
     # Благодарность рефереру при первом прохождении
+    # Без имени приглашённой(ого) — это её персональные данные, раскрывать
+    # рефереру без отдельного согласия нельзя.
     if is_first_completion:
         referrer_id = get_referrer_id(message.chat.id)
         if referrer_id:
             try:
-                name = message.from_user.first_name or "Подруга"
                 await message.bot.send_message(
                     referrer_id,
-                    f"🤍 {name} прошла разбор по твоей ссылке!\n\n"
-                    f"Спасибо что делишься — это важно 🌿"
+                    "🤍 Кто-то прошёл разбор по твоей ссылке!\n\n"
+                    "Спасибо что делишься — это важно 🌿"
                 )
             except Exception:
                 pass
