@@ -256,6 +256,10 @@ async def pick_time(callback: CallbackQuery, state: FSMContext):
 
 @booking_router.message(BookingState.waiting_concern)
 async def receive_concern(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("Напиши в двух словах текстом, что тебя беспокоит 🤍")
+        return
+
     concern = message.text.strip()
     user_data = await state.get_data()
     date_str   = user_data.get("booking_date_str", "")

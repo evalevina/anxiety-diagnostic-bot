@@ -256,6 +256,10 @@ async def process_ai_message(message: Message, state: FSMContext):
     user_id = message.from_user.id
     user_text = message.text
 
+    if not user_text:
+        await message.answer("Пока умею отвечать только на текст 🤍 Напиши словами, что тебя беспокоит?")
+        return
+
     if detect_crisis(user_text):
         await message.answer(build_hotlines_message(user_id))
 

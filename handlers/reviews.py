@@ -24,6 +24,10 @@ async def ask_for_review(callback: CallbackQuery, state: FSMContext):
 @reviews_router.message(ReviewState.waiting_text)
 async def process_review(message: Message, state: FSMContext):
 
+    if not message.text:
+        await message.answer("Напиши отзыв текстом 🤍")
+        return
+
     text = message.text.strip()
     user_id = message.from_user.id
 

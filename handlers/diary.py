@@ -90,12 +90,18 @@ async def process_diary_tag(callback: CallbackQuery, state: FSMContext):
 
 @diary_router.message(DiaryState.waiting_custom_note)
 async def process_diary_custom_note(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("Напиши в двух словах текстом 🤍")
+        return
     note = message.text.strip() or None
     await _save_and_respond(message.from_user.id, state, note, message)
 
 
 @diary_router.message(DiaryState.waiting_note)
 async def process_diary_text_note(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("Напиши текстом или выбери один из тегов выше 🤍")
+        return
     note = None if message.text.strip() == "-" else message.text.strip()
     await _save_and_respond(message.from_user.id, state, note, message)
 

@@ -68,6 +68,9 @@ async def cbt_start(callback: CallbackQuery, state: FSMContext):
 
 @thought_router.message(ThoughtRecordState.waiting_thought)
 async def cbt_thought(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("Напиши мысль текстом, своими словами 🤍")
+        return
     await state.update_data(automatic_thought=message.text.strip())
     await state.set_state(ThoughtRecordState.waiting_distortion)
 
@@ -96,6 +99,9 @@ async def cbt_distortion(callback: CallbackQuery, state: FSMContext):
 
 @thought_router.message(ThoughtRecordState.waiting_reframe)
 async def cbt_reframe(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("Напиши текстом, как можно посмотреть на это иначе 🤍")
+        return
     await state.update_data(reframe=message.text.strip())
     await state.set_state(ThoughtRecordState.waiting_rerate)
 
