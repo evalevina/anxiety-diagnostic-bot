@@ -213,7 +213,7 @@ def depersonalize(text: str) -> str:
     return text
 
 
-@router.message(F.text == "🤖 AI - помощник")
+@router.message(F.text == "🤖 AI - компаньон")
 async def start_ai_chat(message: Message, state: FSMContext):
     user_id = message.from_user.id
 
@@ -233,7 +233,7 @@ async def start_ai_chat(message: Message, state: FSMContext):
 
     await message.answer(
         "Привет 🤍\n\n"
-        "Маленькая честность на старте: я — ИИ-помощник, а не сама Ева и не дипломированный "
+        "Маленькая честность на старте: я — ИИ-компаньон, а не сама Ева и не дипломированный "
         "специалист 🌿 Поэтому не заменяю живую терапию или помощь врача — но я здесь, чтобы "
         "внимательно выслушать тебя и побыть рядом.\n\n"
         "Расскажи, что тебя беспокоит?",
@@ -246,7 +246,7 @@ async def exit_ai_chat(message: Message, state: FSMContext):
     await state.clear()
 
     await message.answer(
-        "Диалог завершён 🤍\n\nБереги себя. Если понадоблюсь — нажми «🤖 AI - помощник».",
+        "Диалог завершён 🤍\n\nБереги себя. Если понадоблюсь — нажми «🤖 AI - компаньон».",
         reply_markup=MAIN_MENU
     )
 

@@ -64,7 +64,7 @@ async def start(message: Message, command: CommandObject, state: FSMContext):
             await message.answer(
                 f"С возвращением, {name}! 🤍\n\n"
                 f"Ты — {type_label}.\n\n"
-                f"Как дела с тревогой? Дневник и AI-помощник всегда здесь 👇",
+                f"Как дела с тревогой? Дневник и AI-компаньон всегда здесь 👇",
                 reply_markup=MAIN_MENU
             )
         else:
@@ -330,6 +330,6 @@ async def cmd_mytype(message: Message):
     await message.answer(
         f"Твой тип тревоги: *{type_label}*\n\n"
         f"{status}\n\n"
-        f"Используй меню ниже для дневника, AI-помощника или записи на сессию 🤍",
+        f"Используй меню ниже для дневника, AI-компаньона или записи на сессию 🤍",
         parse_mode="Markdown"
     )
