@@ -216,7 +216,8 @@ async def about(callback: CallbackQuery):
 # ---------------- MENU ----------------
 
 @router.message(F.text == "📖 О проекте")
-async def menu_about(message: Message):
+async def menu_about(message: Message, state: FSMContext):
+    await state.clear()
 
     save_message(message.from_user.id, "user", "📖 О проекте")
 
@@ -239,7 +240,8 @@ async def menu_about(message: Message):
 
 
 @router.message(F.text == "💬 Задать вопрос")
-async def menu_question(message: Message):
+async def menu_question(message: Message, state: FSMContext):
+    await state.clear()
 
     save_message(message.from_user.id, "user", "💬 Задать вопрос")
 

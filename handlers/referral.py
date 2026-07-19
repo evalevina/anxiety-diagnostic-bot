@@ -1,4 +1,5 @@
 from aiogram import Router, F
+from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
 from database import get_referral_count
@@ -8,7 +9,8 @@ referral_router = Router()
 
 
 @referral_router.message(F.text == "🎁 Пригласить подругу")
-async def cmd_referral(message: Message):
+async def cmd_referral(message: Message, state: FSMContext):
+    await state.clear()
 
     user_id = message.from_user.id
     count = get_referral_count(user_id)

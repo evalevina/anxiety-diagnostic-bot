@@ -1,24 +1,35 @@
-import hmac
-import hashlib
+import ipaddress
 import json
 import logging
 
 from aiohttp import web
 
 from database import set_bought, save_message, add_funnel_task, get_payment_type
-from config import ADMIN_ID, YOOKASSA_SECRET_KEY, WEBHOOK_SECRET
+from config import ADMIN_ID, WEBHOOK_SECRET
 from materials import send_materials
 
 logger = logging.getLogger(__name__)
 
+# ЮKassa не подписывает уведомления HMAC-заголовком (в отличие от Stripe и
+# похожих провайдеров) — их официальный способ проверки подлинности это
+# сверка IP отправителя со списком их серверов уведомлений:
+# https://yookassa.ru/docs/support/merchant/payments/http-notifications
+_YOOKASSA_NETWORKS = [
+    ipaddress.ip_network(net) for net in (
+        "185.71.76.0/27", "185.71.77.0/27",
+        "77.75.153.0/25", "77.75.154.128/25",
+        "2a02:5180:0:1509::/64", "2a02:5180:0:2655::/64",
+        "2a02:5180:0:1533::/64", "2a02:5180:0:2669::/64",
+    )
+]
 
-def verify_yookassa_signature(body: bytes, signature: str) -> bool:
-    expected = hmac.new(
-        YOOKASSA_SECRET_KEY.encode(),
-        body,
-        hashlib.sha256
-    ).hexdigest()
-    return hmac.compare_digest(expected, signature)
+
+def _is_yookassa_ip(ip_str: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(ip_str)
+    except ValueError:
+        return False
+    return any(ip in net for net in _YOOKASSA_NETWORKS)
 
 
 async def handle_yookassa(request):
@@ -32,13 +43,15 @@ async def handle_yookassa(request):
                 logger.warning("Webhook: неверный секретный токен — запрос отклонён")
                 return web.Response(status=403)
 
-        body = await request.read()
-        signature = request.headers.get("Signature", "")
-
-        if signature and not verify_yookassa_signature(body, signature):
-            logger.warning("Webhook: неверная подпись — запрос отклонён")
+        # nginx перед этим сервером прокидывает реальный IP клиента в
+        # X-Real-IP (см. /etc/nginx/sites-enabled) — сам aiohttp видит
+        # только локальный адрес nginx, поэтому смотрим на заголовок.
+        client_ip = request.headers.get("X-Real-IP", request.remote or "")
+        if not _is_yookassa_ip(client_ip):
+            logger.warning(f"Webhook: запрос не с IP ЮKassa ({client_ip}) — отклонён")
             return web.Response(status=403)
 
+        body = await request.read()
         data = json.loads(body)
 
         event = data.get("event", "")

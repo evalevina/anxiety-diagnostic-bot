@@ -112,6 +112,17 @@ QUESTIONS = [
 
 # ---------------- START QUIZ ----------------
 
+def _phone_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📱 Поделиться номером", request_contact=True)],
+            [KeyboardButton(text="Пропустить")],
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+
+
 @router.callback_query(F.data == "start_quiz")
 async def start_quiz(callback: CallbackQuery, state: FSMContext):
 
@@ -129,20 +140,11 @@ async def start_quiz(callback: CallbackQuery, state: FSMContext):
     if not has_pending_quiz_reminder(callback.from_user.id):
         add_funnel_task(callback.from_user.id, 2 * 3600, "quiz_reminder")
 
-    phone_keyboard = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="📱 Поделиться номером", request_contact=True)],
-            [KeyboardButton(text="Пропустить")],
-        ],
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
-
     await callback.message.answer(
         "Прежде чем начать — оставь свой номер телефона.\n\n"
         "Это поможет мне связаться с тобой, "
         "если захочешь записаться на консультацию 🤍",
-        reply_markup=phone_keyboard
+        reply_markup=_phone_keyboard()
     )
 
     await callback.answer()
@@ -168,6 +170,19 @@ async def skip_phone(message: Message, state: FSMContext):
     await message.answer("Хорошо, начинаем! 🤍", reply_markup=ReplyKeyboardRemove())
 
     await send_question(message, state, 0)
+
+
+@router.message(QuizState.waiting_phone)
+async def invalid_phone_input(message: Message):
+    # Что угодно, кроме контакта или точного "Пропустить" (опечатка, стикер,
+    # голосовое) — раньше улетало в глобальный fallback, который сбрасывал
+    # FSM-состояние и заставлял проходить тест заново. Вместо этого мягко
+    # переспрашиваем, не теряя прогресс.
+    await message.answer(
+        "Не поняла 🤍 Поделись номером через кнопку ниже или нажми «Пропустить»,"
+        " чтобы продолжить без него.",
+        reply_markup=_phone_keyboard()
+    )
 
 
 # ---------------- SEND QUESTION ----------------

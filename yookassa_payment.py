@@ -9,11 +9,6 @@ Configuration.account_id = YOOKASSA_SHOP_ID
 Configuration.secret_key = YOOKASSA_SECRET_KEY
 
 
-def create_payment(user_id):
-
-    return create_payment_amount(user_id, 1490, "Полный разбор тревоги", "product")
-
-
 def create_payment_amount(user_id, amount, description, payment_type="product"):
 
     # Возвращаем существующий URL если платёж создан менее 30 минут назад

@@ -48,7 +48,8 @@ def _tag_keyboard():
 
 
 @diary_router.message(F.text == "📔 Дневник")
-async def cmd_diary(message: Message):
+async def cmd_diary(message: Message, state: FSMContext):
+    await state.clear()
     if not await ensure_consent(message, message.from_user.id):
         return
     await message.answer(

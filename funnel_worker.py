@@ -20,7 +20,7 @@ from database import (
     is_unsubscribed
 )
 
-from yookassa_payment import create_payment
+from yookassa_payment import create_payment_returning
 from tips import TIPS
 from config import GROUP_PROGRAM_LINK, GROUP_PROGRAM_PRICE, ADMIN_ID, BOT_USERNAME
 
@@ -105,13 +105,15 @@ async def funnel_worker(bot):
                     )
 
                     loop = asyncio.get_running_loop()
-                    payment_url = await loop.run_in_executor(None, create_payment, user_id)
+                    payment_url, price = await loop.run_in_executor(
+                        None, create_payment_returning, user_id
+                    )
 
                     keyboard = InlineKeyboardMarkup(
                         inline_keyboard=[
                             [
                                 InlineKeyboardButton(
-                                    text="💳 Забрать за 1490₽",
+                                    text=f"💳 Забрать за {price}₽",
                                     url=payment_url
                                 )
                             ]
@@ -133,13 +135,15 @@ async def funnel_worker(bot):
                 elif message_type == "72h":
 
                     loop = asyncio.get_running_loop()
-                    payment_url_72h = await loop.run_in_executor(None, create_payment, user_id)
+                    payment_url_72h, price_72h = await loop.run_in_executor(
+                        None, create_payment_returning, user_id
+                    )
 
                     keyboard = InlineKeyboardMarkup(
                         inline_keyboard=[
                             [
                                 InlineKeyboardButton(
-                                    text="💳 Успеть за 1490₽",
+                                    text=f"💳 Успеть за {price_72h}₽",
                                     url=payment_url_72h
                                 )
                             ],
@@ -152,11 +156,17 @@ async def funnel_worker(bot):
                         ]
                     )
 
+                    price_line = (
+                        f"Сегодня последний день специальной цены: 1490₽ вместо 3490₽."
+                        if price_72h == 1490 else
+                        f"Специальная цена уже закончилась — сейчас {price_72h}₽."
+                    )
+
                     await bot.send_message(
                         user_id,
 
                         "Три дня — это время, за которое обычно принимают решение 🕯\n\n"
-                        "Сегодня последний день специальной цены: 1490₽ вместо 3490₽.\n\n"
+                        f"{price_line}\n\n"
                         "Если что-то останавливает — это нормально. "
                         "Вложить деньги в себя бывает страшно, "
                         "особенно когда не знаешь наверняка, поможет ли.\n\n"
@@ -232,7 +242,9 @@ async def funnel_worker(bot):
 
                     if not get_user_bought(user_id):
                         loop = asyncio.get_running_loop()
-                        payment_url = await loop.run_in_executor(None, create_payment, user_id)
+                        payment_url, price = await loop.run_in_executor(
+                            None, create_payment_returning, user_id
+                        )
 
                         share_link = f"https://t.me/{BOT_USERNAME}?start=ref_{user_id}"
                         share_url = (
@@ -242,11 +254,19 @@ async def funnel_worker(bot):
 
                         offer_keyboard = InlineKeyboardMarkup(
                             inline_keyboard=[
-                                [InlineKeyboardButton(text="💳 Купить за 1490₽", url=payment_url)],
+                                [InlineKeyboardButton(text=f"💳 Купить за {price}₽", url=payment_url)],
                                 [InlineKeyboardButton(text="✅ Я оплатил(а)", callback_data="paid")],
                                 [InlineKeyboardButton(text="🤔 Подумать", callback_data="think")],
                                 [InlineKeyboardButton(text="📄 Условия оферты", url="https://levinaeva.com/oferta.html")],
                             ]
+                        )
+
+                        price_block = (
+                            "💰 Обычная цена: 3 490 ₽\n"
+                            "🔥 Сейчас: 1 490 ₽\n"
+                            "⏰ Цена действует 72 часа после прохождения бота"
+                            if price == 1490 else
+                            f"💰 Цена: {price} ₽"
                         )
 
                         offer_text = (
@@ -260,9 +280,7 @@ async def funnel_worker(bot):
                             "🎁 Бонус: запись разбора-вебинара\n"
                             "«Как тревога съедает деньги и отношения» (обычно 990₽)\n\n"
                             "━━━━━━━━━━━━\n"
-                            "💰 Обычная цена: 3 490 ₽\n"
-                            "🔥 Сейчас: 1 490 ₽\n"
-                            "⏰ Цена действует 72 часа после прохождения бота\n"
+                            f"{price_block}\n"
                             "━━━━━━━━━━━━"
                         )
 
