@@ -4,7 +4,7 @@ import os
 import time
 from urllib.parse import quote
 
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile, WebAppInfo
 from aiogram.exceptions import TelegramForbiddenError, TelegramNetworkError
 
 logger = logging.getLogger(__name__)
@@ -20,9 +20,9 @@ from database import (
     is_unsubscribed
 )
 
-from yookassa_payment import create_payment_returning
+from yookassa_payment import create_payment_returning, get_offer_price
 from tips import TIPS
-from config import GROUP_PROGRAM_LINK, GROUP_PROGRAM_PRICE, ADMIN_ID, BOT_USERNAME
+from config import GROUP_PROGRAM_LINK, GROUP_PROGRAM_PRICE, ADMIN_ID, BOT_USERNAME, MINIAPP_URL
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -104,21 +104,32 @@ async def funnel_worker(bot):
                         "«Работа с типом тревоги даёт результат уже через месяц.»"
                     )
 
-                    loop = asyncio.get_running_loop()
-                    payment_url, price = await loop.run_in_executor(
-                        None, create_payment_returning, user_id
-                    )
-
-                    keyboard = InlineKeyboardMarkup(
-                        inline_keyboard=[
-                            [
-                                InlineKeyboardButton(
+                    if MINIAPP_URL:
+                        price = get_offer_price(user_id)
+                        keyboard = InlineKeyboardMarkup(
+                            inline_keyboard=[
+                                [InlineKeyboardButton(
                                     text=f"💳 Забрать за {price}₽",
-                                    url=payment_url
-                                )
+                                    web_app=WebAppInfo(url=f"{MINIAPP_URL}/index.html?screen=payment&type=product")
+                                )]
                             ]
-                        ]
-                    )
+                        )
+                    else:
+                        loop = asyncio.get_running_loop()
+                        payment_url, price = await loop.run_in_executor(
+                            None, create_payment_returning, user_id
+                        )
+
+                        keyboard = InlineKeyboardMarkup(
+                            inline_keyboard=[
+                                [
+                                    InlineKeyboardButton(
+                                        text=f"💳 Забрать за {price}₽",
+                                        url=payment_url
+                                    )
+                                ]
+                            ]
+                        )
 
                     await bot.send_message(
                         user_id,
@@ -134,19 +145,25 @@ async def funnel_worker(bot):
 
                 elif message_type == "72h":
 
-                    loop = asyncio.get_running_loop()
-                    payment_url_72h, price_72h = await loop.run_in_executor(
-                        None, create_payment_returning, user_id
-                    )
+                    if MINIAPP_URL:
+                        price_72h = get_offer_price(user_id)
+                        pay_button = InlineKeyboardButton(
+                            text=f"💳 Успеть за {price_72h}₽",
+                            web_app=WebAppInfo(url=f"{MINIAPP_URL}/index.html?screen=payment&type=product")
+                        )
+                    else:
+                        loop = asyncio.get_running_loop()
+                        payment_url_72h, price_72h = await loop.run_in_executor(
+                            None, create_payment_returning, user_id
+                        )
+                        pay_button = InlineKeyboardButton(
+                            text=f"💳 Успеть за {price_72h}₽",
+                            url=payment_url_72h
+                        )
 
                     keyboard = InlineKeyboardMarkup(
                         inline_keyboard=[
-                            [
-                                InlineKeyboardButton(
-                                    text=f"💳 Успеть за {price_72h}₽",
-                                    url=payment_url_72h
-                                )
-                            ],
+                            [pay_button],
                             [
                                 InlineKeyboardButton(
                                     text="❌ Не интересно",
@@ -241,25 +258,38 @@ async def funnel_worker(bot):
                 elif message_type == "show_offer":
 
                     if not get_user_bought(user_id):
-                        loop = asyncio.get_running_loop()
-                        payment_url, price = await loop.run_in_executor(
-                            None, create_payment_returning, user_id
-                        )
-
                         share_link = f"https://t.me/{BOT_USERNAME}?start=ref_{user_id}"
                         share_url = (
                             f"https://t.me/share/url?url={quote(share_link)}"
                             f"&text={quote('Узнай свой тип тревоги за 5 минут — бесплатно 🤍')}"
                         )
 
-                        offer_keyboard = InlineKeyboardMarkup(
-                            inline_keyboard=[
-                                [InlineKeyboardButton(text=f"💳 Купить за {price}₽", url=payment_url)],
-                                [InlineKeyboardButton(text="✅ Я оплатил(а)", callback_data="paid")],
-                                [InlineKeyboardButton(text="🤔 Подумать", callback_data="think")],
-                                [InlineKeyboardButton(text="📄 Условия оферты", url="https://levinaeva.com/oferta.html")],
-                            ]
-                        )
+                        if MINIAPP_URL:
+                            price = get_offer_price(user_id)
+                            offer_keyboard = InlineKeyboardMarkup(
+                                inline_keyboard=[
+                                    [InlineKeyboardButton(
+                                        text=f"💳 Купить за {price}₽",
+                                        web_app=WebAppInfo(url=f"{MINIAPP_URL}/index.html?screen=payment&type=product")
+                                    )],
+                                    [InlineKeyboardButton(text="🤔 Подумать", callback_data="think")],
+                                    [InlineKeyboardButton(text="📄 Условия оферты", url="https://levinaeva.com/oferta.html")],
+                                ]
+                            )
+                        else:
+                            loop = asyncio.get_running_loop()
+                            payment_url, price = await loop.run_in_executor(
+                                None, create_payment_returning, user_id
+                            )
+
+                            offer_keyboard = InlineKeyboardMarkup(
+                                inline_keyboard=[
+                                    [InlineKeyboardButton(text=f"💳 Купить за {price}₽", url=payment_url)],
+                                    [InlineKeyboardButton(text="✅ Я оплатил(а)", callback_data="paid")],
+                                    [InlineKeyboardButton(text="🤔 Подумать", callback_data="think")],
+                                    [InlineKeyboardButton(text="📄 Условия оферты", url="https://levinaeva.com/oferta.html")],
+                                ]
+                            )
 
                         price_block = (
                             "💰 Обычная цена: 3 490 ₽\n"
