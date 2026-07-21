@@ -28,10 +28,17 @@ TYPE_LABELS = {
     "D": "🎯 Контролёр",
 }
 
+
 # ---------------- START ----------------
 
 @router.message(CommandStart())
 async def start(message: Message, command: CommandObject, state: FSMContext):
+
+    # /start должен всегда возвращать в нормальный режим, даже если
+    # пользователь застрял в середине другого сценария (например, ждёт
+    # ввода номера телефона в повторном тесте) — иначе следующие сообщения
+    # продолжают перехватываться старым состоянием.
+    await state.clear()
 
     save_user(
         message.from_user.id,
