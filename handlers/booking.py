@@ -345,7 +345,7 @@ async def admin_confirm(callback: CallbackQuery):
         pay_kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(
                 text=f"💳 Оплатить {SESSION_PRICE}₽",
-                web_app=WebAppInfo(url=f"{MINIAPP_URL}/?screen=payment&type=session")
+                web_app=WebAppInfo(url=f"{MINIAPP_URL}/index.html?screen=payment&type=session")
             )],
             [InlineKeyboardButton(text="📄 Условия оферты", url="https://levinaeva.com/oferta.html")],
         ])

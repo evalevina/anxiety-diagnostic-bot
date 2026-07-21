@@ -8,7 +8,7 @@ from config import MINIAPP_URL
 if MINIAPP_URL:
     _booking_button = KeyboardButton(
         text="📅 Записаться",
-        web_app=WebAppInfo(url=f"{MINIAPP_URL}/?screen=booking")
+        web_app=WebAppInfo(url=f"{MINIAPP_URL}/index.html?screen=booking")
     )
 else:
     _booking_button = KeyboardButton(text="📅 Записаться")
@@ -25,7 +25,7 @@ if MINIAPP_URL:
     _menu_rows.append([
         KeyboardButton(
             text="🗂 Личный кабинет",
-            web_app=WebAppInfo(url=f"{MINIAPP_URL}/?screen=cabinet")
+            web_app=WebAppInfo(url=f"{MINIAPP_URL}/index.html?screen=cabinet")
         )
     ])
 

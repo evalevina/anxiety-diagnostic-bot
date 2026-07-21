@@ -330,7 +330,7 @@ async def handle_results_latest(request):
         "name": result_data["name"],
         "text": result_data["text"],
         "exercise": result_data["exercise"],
-        "image": f"/images/{result_data['image']}",
+        "image": f"/miniapp/images/{result_data['image']}",
     }})
 
 
@@ -392,8 +392,11 @@ async def start_web_server(bot, port=8080):
     app.router.add_get("/api/results/latest", handle_results_latest)
     app.router.add_get("/api/results/history", handle_results_history)
     app.router.add_get("/api/cabinet", handle_cabinet)
+    # /miniapp/images/ до /miniapp/ — картинки квиза отдаём из отдельной папки
+    # bot/images/ (не дублируем в miniapp/), но в том же внешнем неймспейсе,
+    # чтобы на сервере не пришлось заводить ещё один nginx location.
+    app.router.add_static("/miniapp/images/", path=_IMAGES_DIR, show_index=False)
     app.router.add_static("/miniapp/", path=_MINIAPP_DIR, show_index=False)
-    app.router.add_static("/images/", path=_IMAGES_DIR, show_index=False)
 
     runner = web.AppRunner(app)
     await runner.setup()
