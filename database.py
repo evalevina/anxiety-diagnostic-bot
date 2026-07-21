@@ -771,8 +771,10 @@ def save_payment(user_id, payment_id, payment_type="product", payment_url=None):
     conn.close()
 
 
-def get_recent_payment_url(user_id, minutes=30):
-    """Возвращает URL существующего платежа если он создан менее N минут назад."""
+def get_recent_payment_url(user_id, payment_type="product", minutes=30):
+    """Возвращает URL существующего платежа того же типа, если он создан
+    менее N минут назад (тип обязателен, иначе можно вернуть, например,
+    ссылку на сессию вместо ссылки на продукт)."""
 
     conn = connect()
     cursor = conn.cursor()
@@ -781,9 +783,24 @@ def get_recent_payment_url(user_id, minutes=30):
 
     cursor.execute("""
     SELECT payment_url FROM payments
-    WHERE user_id=? AND payment_url IS NOT NULL AND created_at >= ?
+    WHERE user_id=? AND payment_type=? AND payment_url IS NOT NULL AND created_at >= ?
     ORDER BY created_at DESC LIMIT 1
-    """, (user_id, since))
+    """, (user_id, payment_type, since))
+
+    row = cursor.fetchone()
+    conn.close()
+
+    return row[0] if row else None
+
+
+def get_payment_owner(payment_id):
+    """Возвращает user_id владельца платежа или None — проверка доступа перед
+    тем как отдать статус платежа по API."""
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT user_id FROM payments WHERE payment_id=?", (payment_id,))
 
     row = cursor.fetchone()
     conn.close()
@@ -836,10 +853,12 @@ def get_latest_payment_id(user_id):
     conn = connect()
     cursor = conn.cursor()
 
+    # id DESC как вторичный ключ — при двух платежах в одну секунду (Unix-время,
+    # секундная точность) сортировка только по created_at даёт непредсказуемый tie-break.
     cursor.execute("""
     SELECT payment_id FROM payments
     WHERE user_id=?
-    ORDER BY created_at DESC
+    ORDER BY created_at DESC, id DESC
     LIMIT 1
     """, (user_id,))
 

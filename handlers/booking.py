@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
-    Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+    Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, WebAppInfo
 )
 
 from states.quiz_states import BookingState
@@ -16,7 +16,7 @@ from database import (
     get_blocked_times, get_blocked_dates, toggle_blocked_time, toggle_blocked_day
 )
 from yookassa_payment import create_payment_amount
-from config import ADMIN_ID, SESSION_PRICE
+from config import ADMIN_ID, SESSION_PRICE, MINIAPP_URL
 
 booking_router = Router()
 logger = logging.getLogger(__name__)
@@ -339,22 +339,33 @@ async def admin_confirm(callback: CallbackQuery):
         )
         return
 
-    try:
-        # create_payment_amount — синхронный запрос к ЮKassa; уводим в executor,
-        # чтобы не блокировать event loop бота на время сетевого запроса.
-        loop = asyncio.get_running_loop()
-        payment_url = await loop.run_in_executor(
-            None, create_payment_amount, user_id, SESSION_PRICE, "Сессия с психологом", "session"
-        )
-    except Exception as e:
-        logger.error("Booking payment link creation failed: %s", e)
-        await callback.answer("Не удалось создать ссылку на оплату, попробуй ещё раз через минуту", show_alert=True)
-        return
+    if MINIAPP_URL:
+        # Mini App сама создаёт платёж при открытии экрана оплаты
+        # (см. web_server.py::handle_payment_create) — не создаём его заранее.
+        pay_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(
+                text=f"💳 Оплатить {SESSION_PRICE}₽",
+                web_app=WebAppInfo(url=f"{MINIAPP_URL}/?screen=payment&type=session")
+            )],
+            [InlineKeyboardButton(text="📄 Условия оферты", url="https://levinaeva.com/oferta.html")],
+        ])
+    else:
+        try:
+            # create_payment_amount — синхронный запрос к ЮKassa; уводим в executor,
+            # чтобы не блокировать event loop бота на время сетевого запроса.
+            loop = asyncio.get_running_loop()
+            payment_url = await loop.run_in_executor(
+                None, create_payment_amount, user_id, SESSION_PRICE, "Сессия с психологом", "session"
+            )
+        except Exception as e:
+            logger.error("Booking payment link creation failed: %s", e)
+            await callback.answer("Не удалось создать ссылку на оплату, попробуй ещё раз через минуту", show_alert=True)
+            return
 
-    pay_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"💳 Оплатить {SESSION_PRICE}₽", url=payment_url)],
-        [InlineKeyboardButton(text="📄 Условия оферты", url="https://levinaeva.com/oferta.html")],
-    ])
+        pay_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=f"💳 Оплатить {SESSION_PRICE}₽", url=payment_url)],
+            [InlineKeyboardButton(text="📄 Условия оферты", url="https://levinaeva.com/oferta.html")],
+        ])
 
     try:
         await callback.bot.send_message(

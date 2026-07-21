@@ -11,8 +11,8 @@ Configuration.secret_key = YOOKASSA_SECRET_KEY
 
 def create_payment_amount(user_id, amount, description, payment_type="product"):
 
-    # Возвращаем существующий URL если платёж создан менее 30 минут назад
-    existing_url = get_recent_payment_url(user_id, minutes=30)
+    # Возвращаем существующий URL если платёж того же типа создан менее 30 минут назад
+    existing_url = get_recent_payment_url(user_id, payment_type, minutes=30)
     if existing_url:
         return existing_url
 

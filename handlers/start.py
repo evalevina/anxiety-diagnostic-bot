@@ -7,13 +7,15 @@ from aiogram.types import (
     CallbackQuery,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
-    FSInputFile
+    FSInputFile,
+    WebAppInfo
 )
 from aiogram.filters import CommandStart, Command, CommandObject
 from aiogram.fsm.context import FSMContext
 
 from database import save_user, save_message, save_user_source, save_user_referral, get_user_profile, get_finished_count, set_unsubscribed
 from keyboards import MAIN_MENU
+from config import MINIAPP_URL
 
 router = Router()
 
@@ -130,13 +132,38 @@ async def start(message: Message, command: CommandObject, state: FSMContext):
 @router.callback_query(F.data == "returning_buy")
 async def returning_buy(callback: CallbackQuery):
 
+    await callback.answer()
+    user_id = callback.from_user.id
+
+    if MINIAPP_URL:
+        # Mini App сама создаёт платёж при открытии экрана оплаты и
+        # пересчитывает цену по тем же 72ч-правилам (get_offer_price) —
+        # не создаём платёж заранее.
+        from yookassa_payment import get_offer_price
+        price = get_offer_price(user_id)
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(
+                    text=f"💳 Оплатить {price}₽",
+                    web_app=WebAppInfo(url=f"{MINIAPP_URL}/?screen=payment&type=product")
+                )],
+                [InlineKeyboardButton(text="🤔 Подумать ещё", callback_data="think")],
+                [InlineKeyboardButton(text="📄 Условия оферты", url="https://levinaeva.com/oferta.html")],
+            ]
+        )
+
+        await callback.message.answer(
+            "Вот твоя ссылка 👇",
+            reply_markup=keyboard
+        )
+        return
+
     from yookassa_payment import create_payment_returning
 
-    await callback.answer()
     await callback.message.answer("Секунду, создаю ссылку на оплату... 🤍")
 
     loop = asyncio.get_event_loop()
-    user_id = callback.from_user.id
     payment_url, price = await loop.run_in_executor(
         None, lambda: create_payment_returning(user_id)
     )

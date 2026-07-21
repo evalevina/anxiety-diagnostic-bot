@@ -1,3 +1,4 @@
+import asyncio
 import ipaddress
 import json
 import logging
@@ -10,12 +11,13 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database import (
     set_bought, save_message, add_funnel_task, get_payment_type,
     get_taken_times, get_blocked_times, is_date_fully_blocked,
-    save_booking, get_user_type,
+    save_booking, get_user_type, get_latest_payment_id, get_payment_owner,
 )
-from config import ADMIN_ID, WEBHOOK_SECRET
+from config import ADMIN_ID, WEBHOOK_SECRET, SESSION_PRICE
 from materials import send_materials
 from miniapp_auth import verify_init_data
 from handlers.booking import SLOTS, TYPE_NAMES, MONTH_GEN, DAY_NAMES
+from yookassa_payment import create_payment_amount, check_payment_status, get_offer_price
 
 logger = logging.getLogger(__name__)
 
@@ -231,6 +233,66 @@ async def handle_booking_book(request):
     return web.json_response({"ok": True})
 
 
+# ---------------- MINI APP: ОПЛАТА ----------------
+
+_PAYMENT_DESCRIPTIONS = {
+    "session": "Сессия с психологом",
+    "product": "Полный разбор тревоги",
+}
+
+
+async def handle_payment_create(request):
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "bad_request"}, status=400)
+
+    user = verify_init_data(data.get("initData", ""))
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    payment_type = data.get("payment_type", "")
+    if payment_type not in _PAYMENT_DESCRIPTIONS:
+        return web.json_response({"error": "bad_payment_type"}, status=400)
+
+    user_id = user["id"]
+    amount = SESSION_PRICE if payment_type == "session" else get_offer_price(user_id)
+    description = _PAYMENT_DESCRIPTIONS[payment_type]
+
+    try:
+        loop = asyncio.get_running_loop()
+        url = await loop.run_in_executor(
+            None, create_payment_amount, user_id, amount, description, payment_type
+        )
+        payment_id = await loop.run_in_executor(None, get_latest_payment_id, user_id)
+    except Exception as e:
+        logger.error("Mini App payment creation failed: %s", e)
+        return web.json_response({"error": "payment_failed"}, status=502)
+
+    return web.json_response({"url": url, "payment_id": payment_id, "amount": amount})
+
+
+async def handle_payment_status(request):
+    init_data = request.rel_url.query.get("initData", "")
+    payment_id = request.rel_url.query.get("payment_id", "")
+
+    user = verify_init_data(init_data)
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    if not payment_id or get_payment_owner(payment_id) != user["id"]:
+        return web.json_response({"error": "not_found"}, status=404)
+
+    try:
+        loop = asyncio.get_running_loop()
+        status = await loop.run_in_executor(None, check_payment_status, payment_id)
+    except Exception as e:
+        logger.error("Mini App payment status check failed: %s", e)
+        return web.json_response({"error": "status_failed"}, status=502)
+
+    return web.json_response({"status": status})
+
+
 async def start_web_server(bot, port=8080):
 
     app = web.Application()
@@ -238,6 +300,8 @@ async def start_web_server(bot, port=8080):
     app.router.add_post("/webhook", handle_yookassa)
     app.router.add_get("/api/booking/slots", handle_booking_slots)
     app.router.add_post("/api/booking/book", handle_booking_book)
+    app.router.add_post("/api/payment/create", handle_payment_create)
+    app.router.add_get("/api/payment/status", handle_payment_status)
     app.router.add_static("/miniapp/", path=_MINIAPP_DIR, show_index=False)
 
     runner = web.AppRunner(app)
