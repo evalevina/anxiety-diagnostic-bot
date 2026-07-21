@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Запись на сессию</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+
+<main id="app">
+
+  <section id="screen-date" class="screen">
+    <h1>Запись на сессию</h1>
+    <p class="hint">Выбери удобный день — доступны ближайшие 60 дней, кроме воскресений</p>
+    <input type="date" id="date-input">
+    <div id="date-error" class="error"></div>
+  </section>
+
+  <section id="screen-time" class="screen hidden">
+    <button class="back" data-back="screen-date">← Другой день</button>
+    <h1 id="time-title">Выбери время</h1>
+    <div id="slots" class="slots"></div>
+    <div id="time-empty" class="hint hidden">На этот день все места заняты — выбери другой день</div>
+  </section>
+
+  <section id="screen-concern" class="screen hidden">
+    <button class="back" data-back="screen-time">← Другое время</button>
+    <h1>Что тебя беспокоит?</h1>
+    <p class="hint">Коротко, в двух словах — это поможет Еве подготовиться к встрече</p>
+    <textarea id="concern-input" rows="4" placeholder="Например: тревога на работе"></textarea>
+    <div id="concern-error" class="error"></div>
+  </section>
+
+  <section id="screen-done" class="screen hidden">
+    <h1>Запрос отправлен ⏳</h1>
+    <p id="done-text" class="hint"></p>
+    <p class="hint">Ева подтвердит запись в ближайшее время — напишет тебе в чат 🤍</p>
+  </section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

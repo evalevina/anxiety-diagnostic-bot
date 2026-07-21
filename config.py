@@ -25,3 +25,8 @@ PRODUCT_PRICE = int(os.getenv("PRODUCT_PRICE", "1490"))
 GROUP_PROGRAM_PRICE = int(os.getenv("GROUP_PROGRAM_PRICE", "3000"))
 GROUP_PROGRAM_LINK = os.getenv("GROUP_PROGRAM_LINK", "")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
+
+# Базовый HTTPS-адрес, по которому отдаётся Mini App (например
+# "https://miniapp.evalevina.dev/miniapp"). Пока пусто — кнопки открытия
+# Mini App в чате отключены, бот работает как раньше.
+MINIAPP_URL = os.getenv("MINIAPP_URL", "")

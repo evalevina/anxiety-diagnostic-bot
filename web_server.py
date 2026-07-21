@@ -1,14 +1,25 @@
 import ipaddress
 import json
 import logging
+import os
+from datetime import date, timedelta
 
 from aiohttp import web
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from database import set_bought, save_message, add_funnel_task, get_payment_type
+from database import (
+    set_bought, save_message, add_funnel_task, get_payment_type,
+    get_taken_times, get_blocked_times, is_date_fully_blocked,
+    save_booking, get_user_type,
+)
 from config import ADMIN_ID, WEBHOOK_SECRET
 from materials import send_materials
+from miniapp_auth import verify_init_data
+from handlers.booking import SLOTS, TYPE_NAMES, MONTH_GEN, DAY_NAMES
 
 logger = logging.getLogger(__name__)
+
+_MINIAPP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "miniapp")
 
 # ЮKassa не подписывает уведомления HMAC-заголовком (в отличие от Stripe и
 # похожих провайдеров) — их официальный способ проверки подлинности это
@@ -118,11 +129,116 @@ async def handle_yookassa(request):
     return web.Response(status=200)
 
 
-async def start_webhook_server(bot, port=8080):
+# ---------------- MINI APP: БРОНИРОВАНИЕ ----------------
+
+
+def _free_slots(date_str: str):
+    """Свободные слоты на дату или None, если дата вне допустимого диапазона
+    записи (та же логика доступности, что и в handlers/booking.py::_time_kb)."""
+
+    try:
+        year, month, day = int(date_str[:4]), int(date_str[4:6]), int(date_str[6:])
+        d = date(year, month, day)
+    except (ValueError, IndexError):
+        return None
+
+    today = date.today()
+    max_date = today + timedelta(days=60)
+    if d <= today or d > max_date or d.weekday() == 6:  # воскресенье не работаем
+        return None
+
+    if is_date_fully_blocked(date_str):
+        return []
+
+    unavailable = set(get_taken_times(date_str)) | set(get_blocked_times(date_str))
+    return [s for s in SLOTS if s not in unavailable]
+
+
+async def handle_booking_slots(request):
+    date_str = request.rel_url.query.get("date", "")
+    init_data = request.rel_url.query.get("initData", "")
+
+    if not verify_init_data(init_data):
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    slots = _free_slots(date_str)
+    if slots is None:
+        return web.json_response({"error": "invalid_date"}, status=400)
+
+    return web.json_response({"free": slots})
+
+
+async def handle_booking_book(request):
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "bad_request"}, status=400)
+
+    user = verify_init_data(data.get("initData", ""))
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    date_str = data.get("date", "")
+    time_str = data.get("time", "")
+    concern = (data.get("concern") or "").strip()
+
+    if not concern:
+        return web.json_response({"error": "concern_required"}, status=400)
+
+    slots = _free_slots(date_str)
+    if slots is None or time_str not in slots:
+        return web.json_response({"error": "slot_unavailable"}, status=409)
+
+    year, month, day = int(date_str[:4]), int(date_str[4:6]), int(date_str[6:])
+    d = date(year, month, day)
+    date_pretty = f"{day} {MONTH_GEN[month]}, {DAY_NAMES[d.weekday()]}"
+
+    user_id = user["id"]
+    first_name = user.get("first_name", "")
+    username = f"@{user['username']}" if user.get("username") else "без username"
+
+    anxiety_type = get_user_type(user_id)
+    type_label = TYPE_NAMES.get(anxiety_type, "не определён") if anxiety_type else "не определён"
+
+    save_booking(user_id, f"{date_pretty} в {time_str}", date_str, time_str)
+
+    bot = request.app["bot"]
+
+    admin_kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"bk_ok_{user_id}_{date_str}_{time_str}"),
+        InlineKeyboardButton(text="❌ Отклонить", callback_data=f"bk_no_{user_id}_{date_str}_{time_str}"),
+    ]])
+
+    await bot.send_message(
+        ADMIN_ID,
+        f"📅 *Новая запись (Mini App)!*\n\n"
+        f"👤 {first_name} {username}\n"
+        f"ID: `{user_id}`\n"
+        f"Тип тревоги: {type_label}\n"
+        f"🕐 {date_pretty.capitalize()} в {time_str}\n\n"
+        f"💬 Запрос: _{concern}_",
+        parse_mode="Markdown",
+        reply_markup=admin_kb
+    )
+
+    await bot.send_message(
+        user_id,
+        f"⏳ Запрос отправлен!\n\n"
+        f"📅 {date_pretty.capitalize()} в {time_str}\n\n"
+        f"Ева подтвердит запись в ближайшее время — и я тебе напишу 🤍"
+    )
+
+    return web.json_response({"ok": True})
+
+
+async def start_web_server(bot, port=8080):
 
     app = web.Application()
     app["bot"] = bot
     app.router.add_post("/webhook", handle_yookassa)
+    app.router.add_get("/api/booking/slots", handle_booking_slots)
+    app.router.add_post("/api/booking/book", handle_booking_book)
+    app.router.add_static("/miniapp/", path=_MINIAPP_DIR, show_index=False)
 
     runner = web.AppRunner(app)
     await runner.setup()
@@ -130,4 +246,4 @@ async def start_webhook_server(bot, port=8080):
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-    logger.info(f"Webhook server started on port {port}")
+    logger.info(f"Web server started on port {port}")

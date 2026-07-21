@@ -25,7 +25,7 @@ from handlers.fallback import router as fallback_router
 
 from database import init_db
 from funnel_worker import start_funnel_worker
-from webhook_server import start_webhook_server
+from web_server import start_web_server
 
 # Логи: в файл + в консоль
 _log_dir = os.path.dirname(os.path.abspath(__file__))
@@ -93,7 +93,7 @@ async def main():
     )
 
     asyncio.create_task(
-        start_webhook_server(bot)
+        start_web_server(bot)
     )
 
     logger.info("Bot started OK")
