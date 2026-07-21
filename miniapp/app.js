@@ -47,7 +47,9 @@ function initBooking() {
     }
 
     state.dateStr = dateInput.value.replaceAll("-", "");
-    state.dateLabel = dateInput.value;
+    state.dateLabel = d.toLocaleDateString("ru-RU", {
+      weekday: "long", day: "numeric", month: "long",
+    });
 
     await loadSlots();
   });
@@ -149,25 +151,35 @@ function initBooking() {
 
 // ── Оплата ───────────────────────────────────────────────────────────────
 
+const PAYMENT_TITLES = {
+  session: "Консультация с Евой Левиной",
+  product: "Полный разбор твоего типа тревоги",
+};
+
 function initPayment(paymentType) {
   showScreen("screen-payment");
 
-  const descEl = document.getElementById("payment-desc");
+  const loadingEl = document.getElementById("payment-loading");
   const errEl = document.getElementById("payment-error");
   const btn = document.getElementById("payment-btn");
   const waitEl = document.getElementById("payment-waiting");
+  const titleEl = document.getElementById("payment-title");
+  const amountEl = document.getElementById("payment-amount");
 
   if (paymentType !== "session" && paymentType !== "product") {
+    loadingEl.classList.add("hidden");
     errEl.textContent = "Некорректный тип оплаты — вернись в чат и попробуй снова";
     return;
   }
+
+  titleEl.textContent = PAYMENT_TITLES[paymentType];
 
   let paymentId = null;
   let paymentUrl = null;
   let pollTimer = null;
 
   async function create() {
-    descEl.textContent = "Готовим ссылку на оплату…";
+    loadingEl.classList.remove("hidden");
 
     let res, data;
     try {
@@ -179,14 +191,15 @@ function initPayment(paymentType) {
       data = await res.json();
       if (!res.ok) throw new Error(data.error || "request_failed");
     } catch (e) {
-      descEl.textContent = "";
+      loadingEl.classList.add("hidden");
       errEl.textContent = "Не удалось создать оплату. Попробуй ещё раз через минуту.";
       return;
     }
 
     paymentId = data.payment_id;
     paymentUrl = data.url;
-    descEl.textContent = `К оплате: ${data.amount}₽`;
+    loadingEl.classList.add("hidden");
+    amountEl.textContent = `К оплате: ${data.amount}₽`;
     btn.textContent = `💳 Оплатить ${data.amount}₽`;
     btn.classList.remove("hidden");
   }
@@ -237,16 +250,19 @@ function formatDate(unixSeconds) {
 function initResult() {
   showScreen("screen-result");
 
+  const loadingEl = document.getElementById("result-loading");
   const nameEl = document.getElementById("result-name");
   const dateEl = document.getElementById("result-date");
   const textEl = document.getElementById("result-text");
   const exerciseEl = document.getElementById("result-exercise");
   const imageEl = document.getElementById("result-image");
+  const bodyEl = document.getElementById("result-body");
   const emptyEl = document.getElementById("result-empty");
 
   fetch(`/api/results/latest?initData=${encodeURIComponent(tg.initData)}`)
     .then((res) => res.json())
     .then((data) => {
+      loadingEl.classList.add("hidden");
       if (!data.result) {
         emptyEl.textContent = "Ты ещё не проходил(а) тест — пройди его в чате с ботом 🤍";
         emptyEl.classList.remove("hidden");
@@ -259,8 +275,10 @@ function initResult() {
       exerciseEl.textContent = r.exercise;
       imageEl.src = r.image;
       imageEl.classList.remove("hidden");
+      bodyEl.classList.remove("hidden");
     })
     .catch(() => {
+      loadingEl.classList.add("hidden");
       emptyEl.textContent = "Не удалось загрузить результат. Попробуй ещё раз.";
       emptyEl.classList.remove("hidden");
     });
@@ -288,21 +306,44 @@ function drawDiaryChart(entries) {
   if (points.length < 2) return;
 
   const pad = 10;
-  const stepX = (width - pad * 2) / (points.length - 1);
-  const lineColor = getComputedStyle(document.body).getPropertyValue("--tg-theme-link-color") || "#2481cc";
+  const stepX = points.length > 1 ? (width - pad * 2) / (points.length - 1) : 0;
+  const accent = getComputedStyle(document.body).getPropertyValue("--accent").trim() || "#9C8469";
 
-  ctx.strokeStyle = lineColor.trim() || "#2481cc";
-  ctx.lineWidth = 2;
+  const coords = points.map((p, i) => ({
+    x: pad + i * stepX,
+    y: height - pad - (p.score / 10) * (height - pad * 2),
+  }));
+
+  // Заливка под линией — мягкий градиент в тон акцента
+  const gradient = ctx.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, `color-mix(in srgb, ${accent} 35%, transparent)`);
+  gradient.addColorStop(1, `color-mix(in srgb, ${accent} 0%, transparent)`);
+
   ctx.beginPath();
+  ctx.moveTo(coords[0].x, height - pad);
+  coords.forEach((c) => ctx.lineTo(c.x, c.y));
+  ctx.lineTo(coords[coords.length - 1].x, height - pad);
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
 
-  points.forEach((p, i) => {
-    const x = pad + i * stepX;
-    const y = height - pad - (p.score / 10) * (height - pad * 2);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+  ctx.beginPath();
+  coords.forEach((c, i) => {
+    if (i === 0) ctx.moveTo(c.x, c.y);
+    else ctx.lineTo(c.x, c.y);
   });
-
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
   ctx.stroke();
+
+  coords.forEach((c) => {
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = accent;
+    ctx.fill();
+  });
 }
 
 function initCabinet() {

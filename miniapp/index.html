@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Запись на сессию</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="style.css">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
@@ -36,16 +38,28 @@
 
   <section id="screen-done" class="screen hidden">
     <h1>Запрос отправлен ⏳</h1>
-    <p id="done-text" class="hint"></p>
-    <p class="hint">Ева подтвердит запись в ближайшее время — напишет тебе в чат 🤍</p>
+    <div class="body-card">
+      <p id="done-text" class="body-text" style="font-weight:500"></p>
+      <p class="hint" style="margin:8px 0 0">Ева подтвердит запись в ближайшее время — напишет тебе в чат 🤍</p>
+    </div>
   </section>
 
   <section id="screen-payment" class="screen hidden">
     <h1>Оплата</h1>
-    <p id="payment-desc" class="hint"></p>
+    <div class="body-card">
+      <p id="payment-title" class="body-text" style="font-weight:500; margin-bottom:6px"></p>
+      <p id="payment-amount" class="hint" style="margin-bottom:0"></p>
+    </div>
+    <div id="payment-loading" class="center-note">
+      <div class="spinner"></div>
+      <p id="payment-desc" class="hint" style="margin-bottom:0">Готовим ссылку на оплату…</p>
+    </div>
     <div id="payment-error" class="error"></div>
     <button id="payment-btn" class="pay-btn hidden"></button>
-    <p id="payment-waiting" class="hint hidden">Ожидаем подтверждения оплаты — обычно это занимает несколько секунд…</p>
+    <div id="payment-waiting" class="center-note hidden">
+      <div class="spinner"></div>
+      <p class="hint" style="margin-bottom:0">Ожидаем подтверждения оплаты — обычно это занимает несколько секунд…</p>
+    </div>
   </section>
 
   <section id="screen-payment-done" class="screen hidden">
@@ -54,11 +68,14 @@
   </section>
 
   <section id="screen-result" class="screen hidden">
+    <div id="result-loading" class="center-note"><div class="spinner"></div></div>
     <img id="result-image" class="result-image hidden">
     <h1 id="result-name"></h1>
     <p id="result-date" class="hint"></p>
-    <p id="result-text" class="body-text"></p>
-    <p id="result-exercise" class="body-text"></p>
+    <div id="result-body" class="hidden">
+      <div class="body-card"><p id="result-text" class="body-text"></p></div>
+      <div class="body-card"><p id="result-exercise" class="body-text"></p></div>
+    </div>
     <p id="result-empty" class="hint hidden"></p>
   </section>
 
@@ -69,7 +86,7 @@
       <button class="tab-btn" data-tab="bookings">Записи</button>
       <button class="tab-btn" data-tab="diary">Дневник</button>
     </div>
-    <div id="tab-results" class="tab-panel"></div>
+    <div id="tab-results" class="tab-panel"><div class="center-note"><div class="spinner"></div></div></div>
     <div id="tab-bookings" class="tab-panel hidden"></div>
     <div id="tab-diary" class="tab-panel hidden">
       <canvas id="diary-chart" width="300" height="120"></canvas>
