@@ -1166,6 +1166,24 @@ def mark_booking_declined(user_id, date_str, time_str):
     conn.close()
 
 
+def get_user_bookings(user_id, limit=10):
+    """Возвращает записи пользователя (date_str, time_str, status, created_at)
+    от новых к старым — для личного кабинета."""
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT date_str, time_str, status, created_at FROM bookings
+    WHERE user_id=? ORDER BY created_at DESC, id DESC LIMIT ?
+    """, (user_id, limit))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return rows
+
+
 def get_taken_times(date_str):
     """Времена на дату, уже занятые бронированиями (pending или confirmed) —
     чтобы не показывать клиентам слот, который кто-то уже запросил."""

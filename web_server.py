@@ -12,7 +12,8 @@ from database import (
     set_bought, save_message, add_funnel_task, get_payment_type,
     get_taken_times, get_blocked_times, is_date_fully_blocked,
     save_booking, get_user_type, get_latest_payment_id, get_payment_owner,
-    get_quiz_result_latest, get_quiz_result_history,
+    get_quiz_result_latest, get_quiz_result_history, get_user_bookings,
+    get_diary_history,
 )
 from config import ADMIN_ID, WEBHOOK_SECRET, SESSION_PRICE
 from materials import send_materials
@@ -344,6 +345,41 @@ async def handle_results_history(request):
     return web.json_response({"history": items})
 
 
+# ---------------- MINI APP: ЛИЧНЫЙ КАБИНЕТ ----------------
+
+
+def _pretty_date(date_str):
+    try:
+        year, month, day = int(date_str[:4]), int(date_str[4:6]), int(date_str[6:])
+        d = date(year, month, day)
+        return f"{day} {MONTH_GEN[month]}, {DAY_NAMES[d.weekday()]}"
+    except (ValueError, TypeError, IndexError):
+        return date_str
+
+
+async def handle_cabinet(request):
+    user = verify_init_data(request.rel_url.query.get("initData", ""))
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    user_id = user["id"]
+
+    latest = get_quiz_result_latest(user_id)
+    result = _result_summary(*latest) if latest else None
+
+    bookings = [
+        {"date": d, "date_label": _pretty_date(d), "time": t, "status": s, "created_at": c}
+        for d, t, s, c in get_user_bookings(user_id)
+    ]
+
+    diary = [
+        {"score": score, "note": note, "created_at": c}
+        for score, note, c in get_diary_history(user_id, days=365)
+    ]
+
+    return web.json_response({"result": result, "bookings": bookings, "diary": diary})
+
+
 async def start_web_server(bot, port=8080):
 
     app = web.Application()
@@ -355,6 +391,7 @@ async def start_web_server(bot, port=8080):
     app.router.add_get("/api/payment/status", handle_payment_status)
     app.router.add_get("/api/results/latest", handle_results_latest)
     app.router.add_get("/api/results/history", handle_results_history)
+    app.router.add_get("/api/cabinet", handle_cabinet)
     app.router.add_static("/miniapp/", path=_MINIAPP_DIR, show_index=False)
     app.router.add_static("/images/", path=_IMAGES_DIR, show_index=False)
 

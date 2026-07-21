@@ -13,11 +13,20 @@ if MINIAPP_URL:
 else:
     _booking_button = KeyboardButton(text="📅 Записаться")
 
-MAIN_MENU = ReplyKeyboardMarkup(
-    keyboard=[
-        [_booking_button, KeyboardButton(text="📖 О проекте")],
-        [KeyboardButton(text="💬 Задать вопрос"), KeyboardButton(text="🤖 AI - компаньон")],
-        [KeyboardButton(text="📔 Дневник"), KeyboardButton(text="🎁 Пригласить подругу")],
-    ],
-    resize_keyboard=True
-)
+_menu_rows = [
+    [_booking_button, KeyboardButton(text="📖 О проекте")],
+    [KeyboardButton(text="💬 Задать вопрос"), KeyboardButton(text="🤖 AI - компаньон")],
+    [KeyboardButton(text="📔 Дневник"), KeyboardButton(text="🎁 Пригласить подругу")],
+]
+
+# Личный кабинет — это надстройка Mini App без чатового аналога, поэтому
+# кнопка появляется в меню только когда домен настроен.
+if MINIAPP_URL:
+    _menu_rows.append([
+        KeyboardButton(
+            text="🗂 Личный кабинет",
+            web_app=WebAppInfo(url=f"{MINIAPP_URL}/?screen=cabinet")
+        )
+    ])
+
+MAIN_MENU = ReplyKeyboardMarkup(keyboard=_menu_rows, resize_keyboard=True)

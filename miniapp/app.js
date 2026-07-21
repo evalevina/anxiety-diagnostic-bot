@@ -272,6 +272,103 @@ function initResult() {
     });
 }
 
+// ── Личный кабинет ───────────────────────────────────────────────────────
+
+const BOOKING_STATUS_LABELS = {
+  pending: "⏳ ожидает подтверждения",
+  confirmed: "✅ подтверждена",
+  declined: "❌ отклонена",
+};
+
+function drawDiaryChart(entries) {
+  const canvas = document.getElementById("diary-chart");
+  const ctx = canvas.getContext("2d");
+  const width = canvas.clientWidth || canvas.width;
+  const height = canvas.clientHeight || canvas.height;
+  canvas.width = width;
+  canvas.height = height;
+
+  const points = entries.slice().reverse();
+  ctx.clearRect(0, 0, width, height);
+
+  if (points.length < 2) return;
+
+  const pad = 10;
+  const stepX = (width - pad * 2) / (points.length - 1);
+  const lineColor = getComputedStyle(document.body).getPropertyValue("--tg-theme-link-color") || "#2481cc";
+
+  ctx.strokeStyle = lineColor.trim() || "#2481cc";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+
+  points.forEach((p, i) => {
+    const x = pad + i * stepX;
+    const y = height - pad - (p.score / 10) * (height - pad * 2);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+
+  ctx.stroke();
+}
+
+function initCabinet() {
+  showScreen("screen-cabinet");
+
+  const tabButtons = document.querySelectorAll(".tab-btn");
+  const panels = {
+    results: document.getElementById("tab-results"),
+    bookings: document.getElementById("tab-bookings"),
+    diary: document.getElementById("tab-diary"),
+  };
+
+  tabButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      tabButtons.forEach((b) => b.classList.toggle("active", b === btn));
+      for (const key in panels) {
+        panels[key].classList.toggle("hidden", key !== btn.dataset.tab);
+      }
+    });
+  });
+
+  fetch(`/api/cabinet?initData=${encodeURIComponent(tg.initData)}`)
+    .then((res) => res.json())
+    .then((data) => {
+      if (data.result) {
+        panels.results.innerHTML =
+          `<div class="list-item"><div>${data.result.name}</div>` +
+          `<div class="hint">${formatDate(data.result.created_at)}</div></div>`;
+      } else {
+        panels.results.innerHTML = '<p class="hint">Ты ещё не проходил(а) тест.</p>';
+      }
+
+      if (!data.bookings || data.bookings.length === 0) {
+        panels.bookings.innerHTML = '<p class="hint">Пока нет записей на сессию.</p>';
+      } else {
+        panels.bookings.innerHTML = data.bookings.map((b) => `
+          <div class="list-item">
+            <div>${b.date_label} в ${b.time}</div>
+            <div class="hint">${BOOKING_STATUS_LABELS[b.status] || b.status}</div>
+          </div>
+        `).join("");
+      }
+
+      if (!data.diary || data.diary.length === 0) {
+        panels.diary.innerHTML = '<canvas id="diary-chart"></canvas><p class="hint">Пока нет записей в дневнике.</p>';
+      } else {
+        drawDiaryChart(data.diary);
+        document.getElementById("diary-list").innerHTML = data.diary.slice(0, 20).map((d) => `
+          <div class="list-item">
+            <div>${formatDate(d.created_at)} — тревога ${d.score}/10</div>
+            ${d.note ? `<div class="hint">${d.note}</div>` : ""}
+          </div>
+        `).join("");
+      }
+    })
+    .catch(() => {
+      panels.results.innerHTML = '<p class="hint">Не удалось загрузить данные кабинета.</p>';
+    });
+}
+
 // ── Вход ─────────────────────────────────────────────────────────────────
 
 const params = new URLSearchParams(location.search);
@@ -281,6 +378,8 @@ if (screen === "payment") {
   initPayment(params.get("type") || "");
 } else if (screen === "result") {
   initResult();
+} else if (screen === "cabinet") {
+  initCabinet();
 } else {
   initBooking();
 }
