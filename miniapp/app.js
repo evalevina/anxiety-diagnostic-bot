@@ -10,7 +10,6 @@ function showScreen(id) {
 
 document.querySelectorAll(".back").forEach((btn) => {
   btn.addEventListener("click", () => {
-    tg.MainButton.hide();
     showScreen(btn.dataset.back);
   });
 });
@@ -88,7 +87,6 @@ function initBooking() {
       btn.addEventListener("click", () => {
         state.time = slot;
         showScreen("screen-concern");
-        setupConcernMainButton();
       });
       slotsBox.appendChild(btn);
     });
@@ -96,13 +94,9 @@ function initBooking() {
 
   const concernInput = document.getElementById("concern-input");
   const concernError = document.getElementById("concern-error");
+  const concernBtn = document.getElementById("concern-submit-btn");
 
-  function setupConcernMainButton() {
-    tg.MainButton.setText("Отправить запрос");
-    tg.MainButton.show();
-    tg.MainButton.offClick(submitBooking);
-    tg.MainButton.onClick(submitBooking);
-  }
+  concernBtn.addEventListener("click", submitBooking);
 
   async function submitBooking() {
     concernError.textContent = "";
@@ -112,7 +106,8 @@ function initBooking() {
       return;
     }
 
-    tg.MainButton.showProgress();
+    concernBtn.disabled = true;
+    concernBtn.textContent = "Отправляю…";
 
     let res, data;
     try {
@@ -128,17 +123,17 @@ function initBooking() {
       });
       data = await res.json();
     } catch (e) {
-      tg.MainButton.hideProgress();
+      concernBtn.disabled = false;
+      concernBtn.textContent = "Отправить запрос";
       tg.showAlert("Не удалось отправить запрос. Проверь связь и попробуй снова.");
       return;
     }
 
-    tg.MainButton.hideProgress();
-
     if (!res.ok) {
+      concernBtn.disabled = false;
+      concernBtn.textContent = "Отправить запрос";
       if (data.error === "slot_unavailable") {
         tg.showAlert("Это время только что заняли — выбери другое.");
-        tg.MainButton.hide();
         await loadSlots();
         return;
       }
@@ -146,7 +141,6 @@ function initBooking() {
       return;
     }
 
-    tg.MainButton.hide();
     document.getElementById("done-text").textContent =
       `${state.dateLabel}, в ${state.time}`;
     showScreen("screen-done");
