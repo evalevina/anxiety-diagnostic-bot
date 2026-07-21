@@ -12,16 +12,20 @@ from database import (
     set_bought, save_message, add_funnel_task, get_payment_type,
     get_taken_times, get_blocked_times, is_date_fully_blocked,
     save_booking, get_user_type, get_latest_payment_id, get_payment_owner,
+    get_quiz_result_latest, get_quiz_result_history,
 )
 from config import ADMIN_ID, WEBHOOK_SECRET, SESSION_PRICE
 from materials import send_materials
 from miniapp_auth import verify_init_data
 from handlers.booking import SLOTS, TYPE_NAMES, MONTH_GEN, DAY_NAMES
 from yookassa_payment import create_payment_amount, check_payment_status, get_offer_price
+from results_data import RESULTS
 
 logger = logging.getLogger(__name__)
 
-_MINIAPP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "miniapp")
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_MINIAPP_DIR = os.path.join(_BASE_DIR, "miniapp")
+_IMAGES_DIR = os.path.join(_BASE_DIR, "images")
 
 # ЮKassa не подписывает уведомления HMAC-заголовком (в отличие от Stripe и
 # похожих провайдеров) — их официальный способ проверки подлинности это
@@ -293,6 +297,53 @@ async def handle_payment_status(request):
     return web.json_response({"status": status})
 
 
+# ---------------- MINI APP: РЕЗУЛЬТАТЫ КВИЗА ----------------
+
+
+def _result_summary(anxiety_type, created_at):
+    result_data = RESULTS.get(anxiety_type)
+    if not result_data:
+        return None
+    return {
+        "type": anxiety_type,
+        "created_at": created_at,
+        "name": result_data["name"],
+    }
+
+
+async def handle_results_latest(request):
+    user = verify_init_data(request.rel_url.query.get("initData", ""))
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    latest = get_quiz_result_latest(user["id"])
+    if not latest or latest[0] not in RESULTS:
+        return web.json_response({"result": None})
+
+    anxiety_type, created_at = latest
+    result_data = RESULTS[anxiety_type]
+
+    return web.json_response({"result": {
+        "type": anxiety_type,
+        "created_at": created_at,
+        "name": result_data["name"],
+        "text": result_data["text"],
+        "exercise": result_data["exercise"],
+        "image": f"/images/{result_data['image']}",
+    }})
+
+
+async def handle_results_history(request):
+    user = verify_init_data(request.rel_url.query.get("initData", ""))
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    history = get_quiz_result_history(user["id"])
+    items = [s for s in (_result_summary(t, c) for t, c in history) if s]
+
+    return web.json_response({"history": items})
+
+
 async def start_web_server(bot, port=8080):
 
     app = web.Application()
@@ -302,7 +353,10 @@ async def start_web_server(bot, port=8080):
     app.router.add_post("/api/booking/book", handle_booking_book)
     app.router.add_post("/api/payment/create", handle_payment_create)
     app.router.add_get("/api/payment/status", handle_payment_status)
+    app.router.add_get("/api/results/latest", handle_results_latest)
+    app.router.add_get("/api/results/history", handle_results_history)
     app.router.add_static("/miniapp/", path=_MINIAPP_DIR, show_index=False)
+    app.router.add_static("/images/", path=_IMAGES_DIR, show_index=False)
 
     runner = web.AppRunner(app)
     await runner.setup()

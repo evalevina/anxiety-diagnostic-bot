@@ -108,6 +108,18 @@ def init_db():
     )
     """)
 
+    # история результатов квиза (users.anxiety_type хранит только последний —
+    # эта таблица нужна для истории в личном кабинете, пишется в дополнение)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS quiz_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        anxiety_type TEXT,
+        created_at INTEGER
+    )
+    """)
+
     # отзывы
 
     cursor.execute("""
@@ -449,6 +461,56 @@ def update_result(user_id, anxiety_type):
 
     conn.commit()
     conn.close()
+
+
+def save_quiz_result(user_id, anxiety_type):
+    """Пишется рядом с update_result — не заменяет users.anxiety_type,
+    а копит историю прохождений для личного кабинета."""
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    INSERT INTO quiz_results (user_id, anxiety_type, created_at)
+    VALUES (?, ?, ?)
+    """, (user_id, anxiety_type, int(time.time())))
+
+    conn.commit()
+    conn.close()
+
+
+def get_quiz_result_latest(user_id):
+    """Возвращает (anxiety_type, created_at) последнего прохождения или None."""
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT anxiety_type, created_at FROM quiz_results
+    WHERE user_id=? ORDER BY created_at DESC, id DESC LIMIT 1
+    """, (user_id,))
+
+    row = cursor.fetchone()
+    conn.close()
+
+    return row if row else None
+
+
+def get_quiz_result_history(user_id, limit=20):
+    """Возвращает список (anxiety_type, created_at) от новых к старым."""
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT anxiety_type, created_at FROM quiz_results
+    WHERE user_id=? ORDER BY created_at DESC, id DESC LIMIT ?
+    """, (user_id, limit))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return rows
 
 
 def set_thinking(user_id):

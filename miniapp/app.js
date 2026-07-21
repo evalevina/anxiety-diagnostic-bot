@@ -233,6 +233,45 @@ function initPayment(paymentType) {
   create();
 }
 
+// ── Результат квиза ──────────────────────────────────────────────────────
+
+function formatDate(unixSeconds) {
+  const d = new Date(unixSeconds * 1000);
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+}
+
+function initResult() {
+  showScreen("screen-result");
+
+  const nameEl = document.getElementById("result-name");
+  const dateEl = document.getElementById("result-date");
+  const textEl = document.getElementById("result-text");
+  const exerciseEl = document.getElementById("result-exercise");
+  const imageEl = document.getElementById("result-image");
+  const emptyEl = document.getElementById("result-empty");
+
+  fetch(`/api/results/latest?initData=${encodeURIComponent(tg.initData)}`)
+    .then((res) => res.json())
+    .then((data) => {
+      if (!data.result) {
+        emptyEl.textContent = "Ты ещё не проходил(а) тест — пройди его в чате с ботом 🤍";
+        emptyEl.classList.remove("hidden");
+        return;
+      }
+      const r = data.result;
+      nameEl.textContent = r.name;
+      dateEl.textContent = formatDate(r.created_at);
+      textEl.textContent = r.text;
+      exerciseEl.textContent = r.exercise;
+      imageEl.src = r.image;
+      imageEl.classList.remove("hidden");
+    })
+    .catch(() => {
+      emptyEl.textContent = "Не удалось загрузить результат. Попробуй ещё раз.";
+      emptyEl.classList.remove("hidden");
+    });
+}
+
 // ── Вход ─────────────────────────────────────────────────────────────────
 
 const params = new URLSearchParams(location.search);
@@ -240,6 +279,8 @@ const screen = params.get("screen") || "booking";
 
 if (screen === "payment") {
   initPayment(params.get("type") || "");
+} else if (screen === "result") {
+  initResult();
 } else {
   initBooking();
 }
