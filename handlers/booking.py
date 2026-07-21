@@ -166,6 +166,22 @@ def _admin_day_kb(date_str: str) -> InlineKeyboardMarkup:
 @booking_router.message(F.text == "📅 Записаться")
 async def cmd_booking(message: Message, state: FSMContext):
     await state.clear()
+
+    if MINIAPP_URL:
+        # Кнопка web_app в обычном (reply) меню не получает подписанный
+        # initData у части клиентов (подтверждено на Telegram Desktop и iOS,
+        # версия бриджа 9.6) — инлайн-кнопка под сообщением получает его
+        # исправно, поэтому открываем Mini App именно так, а не через
+        # web_app прямо в клавиатуре MAIN_MENU.
+        kb = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(
+                text="📅 Открыть запись",
+                web_app=WebAppInfo(url=f"{MINIAPP_URL}/index.html?screen=booking")
+            )
+        ]])
+        await message.answer("📅 Открой окно записи:", reply_markup=kb)
+        return
+
     today = date.today()
     await message.answer(
         "📅 Выбери удобную дату:\n_(доступны ближайшие 60 дней, Пн–Сб)_",

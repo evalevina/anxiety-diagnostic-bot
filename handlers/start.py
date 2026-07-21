@@ -28,7 +28,6 @@ TYPE_LABELS = {
     "D": "🎯 Контролёр",
 }
 
-
 # ---------------- START ----------------
 
 @router.message(CommandStart())
@@ -241,6 +240,18 @@ async def about(callback: CallbackQuery):
 
 
 # ---------------- MENU ----------------
+
+@router.message(F.text == "🗂 Личный кабинет")
+async def menu_cabinet(message: Message):
+    # Инлайн-кнопка, а не web_app прямо в reply-клавиатуре — см. keyboards.py.
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text="🗂 Открыть кабинет",
+            web_app=WebAppInfo(url=f"{MINIAPP_URL}/index.html?screen=cabinet")
+        )
+    ]])
+    await message.answer("🗂 Открой личный кабинет:", reply_markup=kb)
+
 
 @router.message(F.text == "📖 О проекте")
 async def menu_about(message: Message, state: FSMContext):
