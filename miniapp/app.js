@@ -23,6 +23,11 @@ function cleanTypeName(name) {
   return (name || "").replace(/^\S+\s*/u, "");
 }
 
+// Позиция обрезки фото типа тревоги в hero-карточке — у каждой картинки
+// свой рост вшитого текста и лица, единая позиция для всех не подходит
+// (то текст вылезает наверх, то лицо срезано).
+const TYPE_HERO_POSITION = { A: "56%", B: "48%", C: "48%", D: "48%" };
+
 function showScreen(id) {
   document.querySelectorAll(".screen").forEach((el) => {
     el.classList.toggle("hidden", el.id !== id);
@@ -425,7 +430,7 @@ function initCabinet() {
     .then((res) => res.json())
     .then((data) => {
       const heroHtml = data.result
-        ? `<div class="hero-card with-photo" style="background-image:url('${data.result.image}')">
+        ? `<div class="hero-card with-photo" style="background-image:url('${data.result.image}');background-position:center ${TYPE_HERO_POSITION[data.result.type] || "50%"}">
              <div class="hero-badge">Твой тип тревоги</div>
              <div class="hero-name">${cleanTypeName(data.result.name)}</div>
              <div class="hero-date">Пройден ${formatDate(data.result.created_at)}</div>

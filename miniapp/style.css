@@ -449,7 +449,6 @@ textarea:focus {
   color: #fff;
   background: linear-gradient(135deg, var(--accent) 0%, var(--brand-accent-light) 100%);
   background-size: cover;
-  background-position: center 44%;
   box-shadow: var(--shadow-soft);
   min-height: 128px;
   display: flex;
