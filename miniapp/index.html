@@ -6,7 +6,7 @@
 <title>Запись на сессию</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -106,23 +106,36 @@
     <p id="result-empty" class="hint hidden"></p>
   </section>
 
-  <section id="screen-cabinet" class="screen hidden">
+  <section id="screen-cabinet" class="screen screen-cabinet hidden">
     <h1>Личный кабинет</h1>
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="results">Результаты</button>
-      <button class="tab-btn" data-tab="bookings">Записи</button>
-      <button class="tab-btn" data-tab="diary">Дневник</button>
+
+    <div id="tab-profile" class="tab-panel">
+      <div class="center-note"><div class="spinner"></div></div>
     </div>
-    <div id="tab-results" class="tab-panel"><div class="center-note"><div class="spinner"></div></div></div>
     <div id="tab-bookings" class="tab-panel hidden"></div>
     <div id="tab-diary" class="tab-panel hidden">
       <canvas id="diary-chart" width="300" height="120"></canvas>
       <div id="diary-list"></div>
     </div>
+
+    <nav class="bottom-tabs">
+      <button class="bottom-tab active" data-tab="profile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c1.5-4 5-5.5 7.5-5.5s6 1.5 7.5 5.5"/></svg>
+        Профиль
+      </button>
+      <button class="bottom-tab" data-tab="bookings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>
+        Записи
+      </button>
+      <button class="bottom-tab" data-tab="diary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21V5.5Z"/><path d="M4 19a2.5 2.5 0 0 1 2.5-2.5H20"/></svg>
+        Дневник
+      </button>
+    </nav>
   </section>
 
 </main>
 
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

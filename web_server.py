@@ -309,6 +309,7 @@ def _result_summary(anxiety_type, created_at):
         "type": anxiety_type,
         "created_at": created_at,
         "name": result_data["name"],
+        "image": f"/miniapp/images/{result_data['image']}",
     }
 
 

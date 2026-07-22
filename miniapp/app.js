@@ -398,12 +398,15 @@ function drawDiaryChart(entries) {
   });
 }
 
+const ICON_CALENDAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>';
+const ICON_BOOK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21V5.5Z"/><path d="M4 19a2.5 2.5 0 0 1 2.5-2.5H20"/></svg>';
+
 function initCabinet() {
   showScreen("screen-cabinet");
 
-  const tabButtons = document.querySelectorAll(".tab-btn");
+  const tabButtons = document.querySelectorAll(".bottom-tab");
   const panels = {
-    results: document.getElementById("tab-results"),
+    profile: document.getElementById("tab-profile"),
     bookings: document.getElementById("tab-bookings"),
     diary: document.getElementById("tab-diary"),
   };
@@ -421,14 +424,56 @@ function initCabinet() {
   fetch(`/api/cabinet?initData=${encodeURIComponent(tg.initData)}`)
     .then((res) => res.json())
     .then((data) => {
-      if (data.result) {
-        const icon = TYPE_ICONS[data.result.type] || "";
-        panels.results.innerHTML =
-          `<div class="list-item with-icon"><div class="type-icon-sm">${icon}</div><div>` +
-          `<div>${cleanTypeName(data.result.name)}</div>` +
-          `<div class="hint">${formatDate(data.result.created_at)}</div></div></div>`;
-      } else {
-        panels.results.innerHTML = '<p class="hint">Ты ещё не проходил(а) тест.</p>';
+      const heroHtml = data.result
+        ? `<div class="hero-card with-photo" style="background-image:url('${data.result.image}')">
+             <div class="hero-badge">Твой тип тревоги</div>
+             <div class="hero-name">${cleanTypeName(data.result.name)}</div>
+             <div class="hero-date">Пройден ${formatDate(data.result.created_at)}</div>
+           </div>`
+        : `<div class="hero-card">
+             <div class="hero-badge">Тип тревоги</div>
+             <div class="hero-name">Пройди тест, чтобы узнать свой тип</div>
+           </div>`;
+
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`;
+      const upcoming = (data.bookings || [])
+        .filter((b) => b.status !== "declined" && b.date >= todayStr)
+        .sort((a, b) => a.date.localeCompare(b.date))[0];
+
+      const promoHtml = upcoming
+        ? `<div class="promo-card">
+             <div class="promo-title">Ближайшая запись</div>
+             <div class="promo-sub">${upcoming.date_label} в ${upcoming.time} — ${BOOKING_STATUS_LABELS[upcoming.status] || upcoming.status}</div>
+           </div>`
+        : `<div class="promo-card promo-clickable" id="promo-book">
+             <div class="promo-title">Готовы сделать шаг?</div>
+             <div class="promo-sub">Запишись на консультацию с Евой — разберём твою тревогу вместе</div>
+           </div>`;
+
+      panels.profile.innerHTML = `
+        ${heroHtml}
+        <div class="quick-actions">
+          <button class="quick-action" id="qa-booking"><span class="qa-icon">${ICON_CALENDAR}</span>Записаться</button>
+          <button class="quick-action" id="qa-diary"><span class="qa-icon">${ICON_BOOK}</span>Дневник</button>
+        </div>
+        ${promoHtml}
+      `;
+
+      document.getElementById("qa-booking").addEventListener("click", () => {
+        haptic("impact", "light");
+        location.href = "index.html?screen=booking";
+      });
+      document.getElementById("qa-diary").addEventListener("click", () => {
+        haptic("selection");
+        document.querySelector('.bottom-tab[data-tab="diary"]').click();
+      });
+      const promoBookEl = document.getElementById("promo-book");
+      if (promoBookEl) {
+        promoBookEl.addEventListener("click", () => {
+          haptic("impact", "light");
+          location.href = "index.html?screen=booking";
+        });
       }
 
       if (!data.bookings || data.bookings.length === 0) {
@@ -455,7 +500,7 @@ function initCabinet() {
       }
     })
     .catch(() => {
-      panels.results.innerHTML = '<p class="hint">Не удалось загрузить данные кабинета.</p>';
+      panels.profile.innerHTML = '<p class="hint">Не удалось загрузить данные кабинета.</p>';
     });
 }
 
