@@ -2,6 +2,27 @@ const tg = window.Telegram.WebApp;
 tg.ready();
 tg.expand();
 
+function haptic(kind, style) {
+  try {
+    const h = tg.HapticFeedback;
+    if (!h) return;
+    if (kind === "selection") h.selectionChanged();
+    else if (kind === "impact") h.impactOccurred(style || "light");
+    else if (kind === "notification") h.notificationOccurred(style || "success");
+  } catch (e) {}
+}
+
+const TYPE_ICONS = {
+  A: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>',
+  B: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 18a4.5 4.5 0 0 1-.5-8.97A5.5 5.5 0 0 1 16.5 9a4 4 0 0 1 .5 7.98"/><path d="M13 17l-2 3M9.5 17l-2 3"/></svg>',
+  C: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M4.9 6.5l14.2 11M4.9 17.5l14.2-11"/></svg>',
+  D: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>',
+};
+
+function cleanTypeName(name) {
+  return (name || "").replace(/^\S+\s*/u, "");
+}
+
 function showScreen(id) {
   document.querySelectorAll(".screen").forEach((el) => {
     el.classList.toggle("hidden", el.id !== id);
@@ -19,40 +40,63 @@ document.querySelectorAll(".back").forEach((btn) => {
 function initBooking() {
   const state = { dateStr: "", dateLabel: "", time: "" };
 
-  const dateInput = document.getElementById("date-input");
-  const dateError = document.getElementById("date-error");
+  const DAY_NAMES_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 
-  const today = new Date();
-  const minDate = new Date(today);
-  minDate.setDate(minDate.getDate() + 1);
-  const maxDate = new Date(today);
-  maxDate.setDate(maxDate.getDate() + 60);
-
-  function toIso(d) {
-    return d.toISOString().slice(0, 10);
+  function monthLabel(d) {
+    const m = d.toLocaleDateString("ru-RU", { month: "long" });
+    return `${m[0].toUpperCase()}${m.slice(1)} ${d.getFullYear()}`;
   }
 
-  dateInput.min = toIso(minDate);
-  dateInput.max = toIso(maxDate);
+  function toIsoLocal(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
 
-  dateInput.addEventListener("change", async () => {
-    dateError.textContent = "";
-    if (!dateInput.value) return;
+  function buildDayPicker() {
+    const picker = document.getElementById("day-picker");
+    const today = new Date();
+    let monthKey = "";
+    let grid = null;
 
-    const d = new Date(dateInput.value + "T00:00:00");
-    if (d.getDay() === 0) {
-      dateError.textContent = "По воскресеньям не работаем — выбери другой день";
-      dateInput.value = "";
-      return;
+    for (let i = 1; i <= 60; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      if (d.getDay() === 0) continue;
+
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      if (key !== monthKey) {
+        monthKey = key;
+        const label = document.createElement("div");
+        label.className = "month-label";
+        label.textContent = monthLabel(d);
+        picker.appendChild(label);
+        grid = document.createElement("div");
+        grid.className = "day-grid";
+        picker.appendChild(grid);
+      }
+
+      const chip = document.createElement("button");
+      chip.className = "day-chip";
+      chip.innerHTML = `<span class="wd">${DAY_NAMES_SHORT[d.getDay()]}</span><span class="dn">${d.getDate()}</span>`;
+      chip.addEventListener("click", () => {
+        document.querySelectorAll(".day-chip.selected").forEach((el) => el.classList.remove("selected"));
+        chip.classList.add("selected");
+        haptic("selection");
+
+        state.dateStr = toIsoLocal(d).replaceAll("-", "");
+        state.dateLabel = d.toLocaleDateString("ru-RU", {
+          weekday: "long", day: "numeric", month: "long",
+        });
+
+        loadSlots();
+      });
+      grid.appendChild(chip);
     }
+  }
 
-    state.dateStr = dateInput.value.replaceAll("-", "");
-    state.dateLabel = d.toLocaleDateString("ru-RU", {
-      weekday: "long", day: "numeric", month: "long",
-    });
-
-    await loadSlots();
-  });
+  buildDayPicker();
 
   const slotsBox = document.getElementById("slots");
   const timeEmpty = document.getElementById("time-empty");
@@ -87,6 +131,7 @@ function initBooking() {
       btn.className = "slot-btn";
       btn.textContent = slot;
       btn.addEventListener("click", () => {
+        haptic("selection");
         state.time = slot;
         showScreen("screen-concern");
       });
@@ -105,6 +150,7 @@ function initBooking() {
     const concern = concernInput.value.trim();
     if (!concern) {
       concernError.textContent = "Напиши в двух словах, что тебя беспокоит";
+      haptic("notification", "error");
       return;
     }
 
@@ -145,6 +191,7 @@ function initBooking() {
 
     document.getElementById("done-text").textContent =
       `${state.dateLabel}, в ${state.time}`;
+    haptic("notification", "success");
     showScreen("screen-done");
   }
 }
@@ -206,6 +253,7 @@ function initPayment(paymentType) {
 
   btn.addEventListener("click", () => {
     if (!paymentUrl) return;
+    haptic("impact", "light");
     tg.openLink(paymentUrl);
     btn.classList.add("hidden");
     waitEl.classList.remove("hidden");
@@ -227,6 +275,7 @@ function initPayment(paymentType) {
 
       if (data.status === "succeeded") {
         clearInterval(pollTimer);
+        haptic("notification", "success");
         showScreen("screen-payment-done");
       } else if (data.status === "canceled") {
         clearInterval(pollTimer);
@@ -251,6 +300,7 @@ function initResult() {
   showScreen("screen-result");
 
   const loadingEl = document.getElementById("result-loading");
+  const badgeEl = document.getElementById("result-badge");
   const nameEl = document.getElementById("result-name");
   const dateEl = document.getElementById("result-date");
   const textEl = document.getElementById("result-text");
@@ -269,7 +319,9 @@ function initResult() {
         return;
       }
       const r = data.result;
-      nameEl.textContent = r.name;
+      badgeEl.innerHTML = TYPE_ICONS[r.type] || "";
+      badgeEl.classList.remove("hidden");
+      nameEl.textContent = cleanTypeName(r.name);
       dateEl.textContent = formatDate(r.created_at);
       textEl.textContent = r.text;
       exerciseEl.textContent = r.exercise;
@@ -358,6 +410,7 @@ function initCabinet() {
 
   tabButtons.forEach((btn) => {
     btn.addEventListener("click", () => {
+      haptic("selection");
       tabButtons.forEach((b) => b.classList.toggle("active", b === btn));
       for (const key in panels) {
         panels[key].classList.toggle("hidden", key !== btn.dataset.tab);
@@ -369,9 +422,11 @@ function initCabinet() {
     .then((res) => res.json())
     .then((data) => {
       if (data.result) {
+        const icon = TYPE_ICONS[data.result.type] || "";
         panels.results.innerHTML =
-          `<div class="list-item"><div>${data.result.name}</div>` +
-          `<div class="hint">${formatDate(data.result.created_at)}</div></div>`;
+          `<div class="list-item with-icon"><div class="type-icon-sm">${icon}</div><div>` +
+          `<div>${cleanTypeName(data.result.name)}</div>` +
+          `<div class="hint">${formatDate(data.result.created_at)}</div></div></div>`;
       } else {
         panels.results.innerHTML = '<p class="hint">Ты ещё не проходил(а) тест.</p>';
       }

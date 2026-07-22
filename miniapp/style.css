@@ -18,6 +18,7 @@
   --line: var(--brand-line);
   --accent: var(--brand-accent);
   --accent-text: #ffffff;
+  --shadow-soft: 0 3px 14px -8px rgba(23, 19, 16, 0.22);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -29,6 +30,7 @@
     --line: #362f27;
     --accent: var(--brand-accent-light);
     --accent-text: #171310;
+    --shadow-soft: 0 3px 16px -6px rgba(0, 0, 0, 0.5);
   }
 }
 
@@ -45,7 +47,10 @@ body {
   padding: 20px 18px 28px;
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 15px;
-  background: var(--bg);
+  background:
+    radial-gradient(120% 55% at 50% -12%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
@@ -90,7 +95,6 @@ h1 {
 
 /* ── Форма ─────────────────────────────────────────────────────────────── */
 
-input[type="date"],
 textarea {
   width: 100%;
   padding: 14px 16px;
@@ -102,17 +106,143 @@ textarea {
   border-radius: 14px;
   margin-bottom: 10px;
   transition: border-color 0.15s ease;
+  resize: vertical;
+  line-height: 1.5;
 }
 
-input[type="date"]:focus,
 textarea:focus {
   outline: none;
   border-color: var(--accent);
 }
 
-textarea {
-  resize: vertical;
-  line-height: 1.5;
+/* ── Шаги бронирования ────────────────────────────────────────────────── */
+
+.steps {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.step-dot {
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  border: 1.5px solid var(--line);
+  color: var(--hint);
+  background: var(--bg-soft);
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.step-label {
+  font-size: 10px;
+  color: var(--hint);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.step.active .step-dot {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-soft));
+}
+
+.step.active .step-label {
+  color: var(--text);
+}
+
+.step.done .step-dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.step-line {
+  flex: 1 1 auto;
+  height: 1.5px;
+  background: var(--line);
+  margin: 12px 6px 0;
+}
+
+/* ── Выбор дня ─────────────────────────────────────────────────────────── */
+
+.day-picker {
+  margin-top: 6px;
+}
+
+.month-label {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--hint);
+  margin: 16px 0 8px;
+  text-transform: capitalize;
+}
+
+.month-label:first-child {
+  margin-top: 0;
+}
+
+.day-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.day-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 0 9px;
+  border-radius: 13px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+  transition: transform 0.1s ease, border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.day-chip .wd {
+  font-size: 10px;
+  color: var(--hint);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.day-chip .dn {
+  font-size: 16.5px;
+  font-weight: 600;
+}
+
+.day-chip:active {
+  transform: scale(0.94);
+}
+
+.day-chip.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.day-chip.selected .wd {
+  color: var(--accent-text);
+  opacity: 0.85;
 }
 
 /* ── Слоты времени ─────────────────────────────────────────────────────── */
@@ -133,6 +263,7 @@ textarea {
   border: 1px solid var(--line);
   background: var(--bg-soft);
   color: var(--text);
+  box-shadow: var(--shadow-soft);
   cursor: pointer;
   transition: transform 0.1s ease, border-color 0.15s ease, background 0.15s ease;
 }
@@ -224,6 +355,65 @@ textarea {
   border-radius: 16px;
   padding: 18px 20px;
   margin-bottom: 14px;
+  box-shadow: var(--shadow-soft);
+}
+
+.card-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  margin-bottom: 9px;
+}
+
+.card-label svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.type-badge {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 15%, var(--bg-soft));
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.type-badge svg {
+  width: 27px;
+  height: 27px;
+}
+
+.type-icon-sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 15%, var(--bg-soft));
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.type-icon-sm svg {
+  width: 17px;
+  height: 17px;
+}
+
+.list-item.with-icon {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .body-text {
@@ -276,6 +466,7 @@ textarea {
   border-radius: 14px;
   background: var(--bg-soft);
   border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
   margin-bottom: 10px;
 }
 

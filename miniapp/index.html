@@ -14,14 +14,27 @@
 <main id="app">
 
   <section id="screen-date" class="screen">
+    <div class="steps">
+      <div class="step active"><span class="step-dot">1</span><span class="step-label">Дата</span></div>
+      <div class="step-line"></div>
+      <div class="step"><span class="step-dot">2</span><span class="step-label">Время</span></div>
+      <div class="step-line"></div>
+      <div class="step"><span class="step-dot">3</span><span class="step-label">Повод</span></div>
+    </div>
     <h1>Запись на сессию</h1>
     <p class="hint">Выбери удобный день — доступны ближайшие 60 дней, кроме воскресений</p>
-    <input type="date" id="date-input">
-    <div id="date-error" class="error"></div>
+    <div class="day-picker" id="day-picker"></div>
   </section>
 
   <section id="screen-time" class="screen hidden">
     <button class="back" data-back="screen-date">← Другой день</button>
+    <div class="steps">
+      <div class="step done"><span class="step-dot">1</span><span class="step-label">Дата</span></div>
+      <div class="step-line"></div>
+      <div class="step active"><span class="step-dot">2</span><span class="step-label">Время</span></div>
+      <div class="step-line"></div>
+      <div class="step"><span class="step-dot">3</span><span class="step-label">Повод</span></div>
+    </div>
     <h1 id="time-title">Выбери время</h1>
     <div id="slots" class="slots"></div>
     <div id="time-empty" class="hint hidden">На этот день все места заняты — выбери другой день</div>
@@ -29,6 +42,13 @@
 
   <section id="screen-concern" class="screen hidden">
     <button class="back" data-back="screen-time">← Другое время</button>
+    <div class="steps">
+      <div class="step done"><span class="step-dot">1</span><span class="step-label">Дата</span></div>
+      <div class="step-line"></div>
+      <div class="step done"><span class="step-dot">2</span><span class="step-label">Время</span></div>
+      <div class="step-line"></div>
+      <div class="step active"><span class="step-dot">3</span><span class="step-label">Повод</span></div>
+    </div>
     <h1>Что тебя беспокоит?</h1>
     <p class="hint">Коротко, в двух словах — это поможет Еве подготовиться к встрече</p>
     <textarea id="concern-input" rows="4" placeholder="Например: тревога на работе"></textarea>
@@ -70,11 +90,18 @@
   <section id="screen-result" class="screen hidden">
     <div id="result-loading" class="center-note"><div class="spinner"></div></div>
     <img id="result-image" class="result-image hidden">
+    <div id="result-badge" class="type-badge hidden"></div>
     <h1 id="result-name"></h1>
     <p id="result-date" class="hint"></p>
     <div id="result-body" class="hidden">
-      <div class="body-card"><p id="result-text" class="body-text"></p></div>
-      <div class="body-card"><p id="result-exercise" class="body-text"></p></div>
+      <div class="body-card">
+        <div class="card-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.45.9 1.15.9 1.9V16h5.2v-.2c0-.75.3-1.45.9-1.9A6 6 0 0 0 12 3Z"/></svg>Что происходит</div>
+        <p id="result-text" class="body-text"></p>
+      </div>
+      <div class="body-card">
+        <div class="card-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 4h11l-2.5 3.5L16 11H5"/></svg>Что делать</div>
+        <p id="result-exercise" class="body-text"></p>
+      </div>
     </div>
     <p id="result-empty" class="hint hidden"></p>
   </section>
