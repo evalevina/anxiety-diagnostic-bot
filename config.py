@@ -30,3 +30,15 @@ WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
 # "https://miniapp.evalevina.dev/miniapp"). Пока пусто — кнопки открытия
 # Mini App в чате отключены, бот работает как раньше.
 MINIAPP_URL = os.getenv("MINIAPP_URL", "")
+
+# Бампать при каждом деплое статики miniapp/ — Telegram WebView кэширует
+# index.html по точному URL и не всегда уважает Cache-Control на уже
+# сохранённой копии, так что смена файлов на сервере может быть не видна
+# в уже открытом Mini App, пока не поменяется сам входной URL.
+MINIAPP_VERSION = "4"
+
+
+def miniapp_url(screen, **params):
+    from urllib.parse import urlencode
+    query = {"screen": screen, "v": MINIAPP_VERSION, **params}
+    return f"{MINIAPP_URL}/index.html?{urlencode(query)}"

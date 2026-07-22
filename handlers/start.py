@@ -15,7 +15,7 @@ from aiogram.fsm.context import FSMContext
 
 from database import save_user, save_message, save_user_source, save_user_referral, get_user_profile, get_finished_count, set_unsubscribed
 from keyboards import MAIN_MENU
-from config import MINIAPP_URL
+from config import MINIAPP_URL, miniapp_url
 
 router = Router()
 
@@ -152,7 +152,7 @@ async def returning_buy(callback: CallbackQuery):
             inline_keyboard=[
                 [InlineKeyboardButton(
                     text=f"💳 Оплатить {price}₽",
-                    web_app=WebAppInfo(url=f"{MINIAPP_URL}/index.html?screen=payment&type=product")
+                    web_app=WebAppInfo(url=miniapp_url("payment", type="product"))
                 )],
                 [InlineKeyboardButton(text="🤔 Подумать ещё", callback_data="think")],
                 [InlineKeyboardButton(text="📄 Условия оферты", url="https://levinaeva.com/oferta.html")],
@@ -254,7 +254,7 @@ async def menu_cabinet(message: Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
             text="🗂 Открыть кабинет",
-            web_app=WebAppInfo(url=f"{MINIAPP_URL}/index.html?screen=cabinet")
+            web_app=WebAppInfo(url=miniapp_url("cabinet"))
         )
     ]])
     await message.answer("🗂 Открой личный кабинет:", reply_markup=kb)

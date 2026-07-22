@@ -22,7 +22,7 @@ from database import (
 
 from yookassa_payment import create_payment_returning, get_offer_price
 from tips import TIPS
-from config import GROUP_PROGRAM_LINK, GROUP_PROGRAM_PRICE, ADMIN_ID, BOT_USERNAME, MINIAPP_URL
+from config import GROUP_PROGRAM_LINK, GROUP_PROGRAM_PRICE, ADMIN_ID, BOT_USERNAME, MINIAPP_URL, miniapp_url
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -110,7 +110,7 @@ async def funnel_worker(bot):
                             inline_keyboard=[
                                 [InlineKeyboardButton(
                                     text=f"💳 Забрать за {price}₽",
-                                    web_app=WebAppInfo(url=f"{MINIAPP_URL}/index.html?screen=payment&type=product")
+                                    web_app=WebAppInfo(url=miniapp_url("payment", type="product"))
                                 )]
                             ]
                         )
@@ -149,7 +149,7 @@ async def funnel_worker(bot):
                         price_72h = get_offer_price(user_id)
                         pay_button = InlineKeyboardButton(
                             text=f"💳 Успеть за {price_72h}₽",
-                            web_app=WebAppInfo(url=f"{MINIAPP_URL}/index.html?screen=payment&type=product")
+                            web_app=WebAppInfo(url=miniapp_url("payment", type="product"))
                         )
                     else:
                         loop = asyncio.get_running_loop()
@@ -270,7 +270,7 @@ async def funnel_worker(bot):
                                 inline_keyboard=[
                                     [InlineKeyboardButton(
                                         text=f"💳 Купить за {price}₽",
-                                        web_app=WebAppInfo(url=f"{MINIAPP_URL}/index.html?screen=payment&type=product")
+                                        web_app=WebAppInfo(url=miniapp_url("payment", type="product"))
                                     )],
                                     [InlineKeyboardButton(text="🤔 Подумать", callback_data="think")],
                                     [InlineKeyboardButton(text="📄 Условия оферты", url="https://levinaeva.com/oferta.html")],

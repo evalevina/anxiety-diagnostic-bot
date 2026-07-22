@@ -16,7 +16,7 @@ from database import (
     get_blocked_times, get_blocked_dates, toggle_blocked_time, toggle_blocked_day
 )
 from yookassa_payment import create_payment_amount
-from config import ADMIN_ID, SESSION_PRICE, MINIAPP_URL
+from config import ADMIN_ID, SESSION_PRICE, MINIAPP_URL, miniapp_url
 
 booking_router = Router()
 logger = logging.getLogger(__name__)
@@ -176,7 +176,7 @@ async def cmd_booking(message: Message, state: FSMContext):
         kb = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(
                 text="📅 Открыть запись",
-                web_app=WebAppInfo(url=f"{MINIAPP_URL}/index.html?screen=booking")
+                web_app=WebAppInfo(url=miniapp_url("booking"))
             )
         ]])
         await message.answer("📅 Открой окно записи:", reply_markup=kb)
@@ -361,7 +361,7 @@ async def admin_confirm(callback: CallbackQuery):
         pay_kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(
                 text=f"💳 Оплатить {SESSION_PRICE}₽",
-                web_app=WebAppInfo(url=f"{MINIAPP_URL}/index.html?screen=payment&type=session")
+                web_app=WebAppInfo(url=miniapp_url("payment", type="session"))
             )],
             [InlineKeyboardButton(text="📄 Условия оферты", url="https://levinaeva.com/oferta.html")],
         ])
