@@ -42,3 +42,13 @@ def miniapp_url(screen, **params):
     from urllib.parse import urlencode
     query = {"screen": screen, "v": MINIAPP_VERSION, **params}
     return f"{MINIAPP_URL}/index.html?{urlencode(query)}"
+
+
+# Личная CRM-панель (crm/) — веб-дашборд для самой Евы, не для клиентов.
+# Пароль общий (один админ), CRM_SESSION_SECRET подписывает cookie-сессию.
+CRM_PASSWORD = os.getenv("CRM_PASSWORD", "")
+CRM_SESSION_SECRET = os.getenv("CRM_SESSION_SECRET", "")
+
+# Тот же смысл, что MINIAPP_VERSION — версионировать входной URL панели,
+# чтобы обычное браузерное кеширование index.html не пряталось от деплоя.
+CRM_VERSION = "1"

@@ -13,11 +13,13 @@ from database import (
     get_taken_times, get_blocked_times, is_date_fully_blocked,
     save_booking, get_user_type, get_latest_payment_id, get_payment_owner,
     get_quiz_result_latest, get_quiz_result_history, get_user_bookings,
-    get_diary_history,
+    get_diary_history, CRM_STAGES, get_crm_client_list, get_crm_client_detail,
+    set_crm_stage, add_crm_note, complete_crm_reminder,
 )
 from config import ADMIN_ID, WEBHOOK_SECRET, SESSION_PRICE
 from materials import send_materials
 from miniapp_auth import verify_init_data
+import crm_auth
 from handlers.booking import SLOTS, TYPE_NAMES, MONTH_GEN, DAY_NAMES
 from yookassa_payment import create_payment_amount, check_payment_status, get_offer_price
 from results_data import RESULTS
@@ -27,6 +29,7 @@ logger = logging.getLogger(__name__)
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _MINIAPP_DIR = os.path.join(_BASE_DIR, "miniapp")
 _IMAGES_DIR = os.path.join(_BASE_DIR, "images")
+_CRM_DIR = os.path.join(_BASE_DIR, "crm")
 
 # ЮKassa не подписывает уведомления HMAC-заголовком (в отличие от Stripe и
 # похожих провайдеров) — их официальный способ проверки подлинности это
@@ -381,6 +384,129 @@ async def handle_cabinet(request):
     return web.json_response({"result": result, "bookings": bookings, "diary": diary})
 
 
+# ---------------- CRM (личная панель, не для клиентов) ----------------
+
+
+def _crm_client_ip(request):
+    # nginx прокидывает реальный IP в X-Real-IP (см. handle_yookassa выше) —
+    # тот же приём для троттлинга попыток логина.
+    return request.headers.get("X-Real-IP", request.remote or "")
+
+
+def _crm_authorized(request):
+    token = request.cookies.get(crm_auth.COOKIE_NAME)
+    return crm_auth.verify_session_token(token)
+
+
+async def handle_crm_login(request):
+    ip = _crm_client_ip(request)
+
+    if crm_auth.is_ip_blocked(ip):
+        return web.json_response({"error": "too_many_attempts"}, status=429)
+
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "bad_request"}, status=400)
+
+    if not crm_auth.check_password(data.get("password", "")):
+        crm_auth.record_failed_attempt(ip)
+        return web.json_response({"error": "wrong_password"}, status=401)
+
+    token = crm_auth.make_session_token()
+    resp = web.json_response({"ok": True})
+    resp.set_cookie(
+        crm_auth.COOKIE_NAME, token,
+        max_age=crm_auth.SESSION_TTL, httponly=True, secure=True, samesite="Lax",
+    )
+    return resp
+
+
+async def handle_crm_logout(request):
+    resp = web.json_response({"ok": True})
+    resp.del_cookie(crm_auth.COOKIE_NAME)
+    return resp
+
+
+async def handle_crm_stages(request):
+    if not _crm_authorized(request):
+        return web.json_response({"error": "unauthorized"}, status=401)
+    return web.json_response({"stages": [{"key": k, "label": label} for k, label in CRM_STAGES]})
+
+
+async def handle_crm_clients(request):
+    if not _crm_authorized(request):
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    search = request.rel_url.query.get("search") or None
+    return web.json_response({"clients": get_crm_client_list(search)})
+
+
+async def handle_crm_client_detail(request):
+    if not _crm_authorized(request):
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    try:
+        user_id = int(request.match_info["user_id"])
+    except ValueError:
+        return web.json_response({"error": "bad_request"}, status=400)
+
+    detail = get_crm_client_detail(user_id)
+    if not detail:
+        return web.json_response({"error": "not_found"}, status=404)
+
+    return web.json_response(detail)
+
+
+async def handle_crm_stage_update(request):
+    if not _crm_authorized(request):
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    try:
+        user_id = int(request.match_info["user_id"])
+        data = await request.json()
+    except (ValueError, json.JSONDecodeError):
+        return web.json_response({"error": "bad_request"}, status=400)
+
+    stage = data.get("stage", "")
+    if stage not in {key for key, _ in CRM_STAGES}:
+        return web.json_response({"error": "bad_stage"}, status=400)
+
+    set_crm_stage(user_id, stage)
+    return web.json_response({"ok": True})
+
+
+async def handle_crm_note_add(request):
+    if not _crm_authorized(request):
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    try:
+        user_id = int(request.match_info["user_id"])
+        data = await request.json()
+    except (ValueError, json.JSONDecodeError):
+        return web.json_response({"error": "bad_request"}, status=400)
+
+    text = (data.get("text") or "").strip()
+    if not text:
+        return web.json_response({"error": "text_required"}, status=400)
+
+    add_crm_note(user_id, text, data.get("reminder_at"))
+    return web.json_response({"ok": True})
+
+
+async def handle_crm_note_done(request):
+    if not _crm_authorized(request):
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    try:
+        note_id = int(request.match_info["note_id"])
+    except ValueError:
+        return web.json_response({"error": "bad_request"}, status=400)
+
+    complete_crm_reminder(note_id)
+    return web.json_response({"ok": True})
+
+
 async def start_web_server(bot, port=8080):
 
     app = web.Application()
@@ -398,6 +524,18 @@ async def start_web_server(bot, port=8080):
     # чтобы на сервере не пришлось заводить ещё один nginx location.
     app.router.add_static("/miniapp/images/", path=_IMAGES_DIR, show_index=False)
     app.router.add_static("/miniapp/", path=_MINIAPP_DIR, show_index=False)
+
+    # Личная CRM-панель — отдельная от Mini App авторизация (пароль+cookie,
+    # не Telegram initData), см. crm_auth.py.
+    app.router.add_post("/api/crm/login", handle_crm_login)
+    app.router.add_post("/api/crm/logout", handle_crm_logout)
+    app.router.add_get("/api/crm/stages", handle_crm_stages)
+    app.router.add_get("/api/crm/clients", handle_crm_clients)
+    app.router.add_get("/api/crm/client/{user_id}", handle_crm_client_detail)
+    app.router.add_post("/api/crm/client/{user_id}/stage", handle_crm_stage_update)
+    app.router.add_post("/api/crm/client/{user_id}/note", handle_crm_note_add)
+    app.router.add_post("/api/crm/note/{note_id}/done", handle_crm_note_done)
+    app.router.add_static("/crm/", path=_CRM_DIR, show_index=False)
 
     runner = web.AppRunner(app)
     await runner.setup()

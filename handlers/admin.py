@@ -28,17 +28,19 @@ from database import (
     get_reviews,
     reset_user_profile,
     get_diary_stats,
-    get_funnel_stats
+    get_funnel_stats,
+    CRM_STAGES,
+    set_crm_stage,
+    add_crm_note,
 )
-from config import ADMIN_ID
+from config import ADMIN_ID, CRM_PASSWORD, CRM_VERSION
 
 router = Router()
 
 
 # ---------- КНОПКИ ----------
 
-admin_keyboard = InlineKeyboardMarkup(
-    inline_keyboard=[
+_admin_rows = [
 
         [
             InlineKeyboardButton(
@@ -111,8 +113,19 @@ admin_keyboard = InlineKeyboardMarkup(
                 callback_data="admin_calendar"
             )
         ]
-    ]
-)
+]
+
+# Кнопка на CRM-панель — только когда пароль настроен (иначе логин там
+# гарантированно не сработает), тот же приём, что MINIAPP_URL в keyboards.py.
+if CRM_PASSWORD:
+    _admin_rows.append([
+        InlineKeyboardButton(
+            text="🗂 CRM-панель",
+            url=f"https://levinaeva.com/crm/index.html?v={CRM_VERSION}"
+        )
+    ])
+
+admin_keyboard = InlineKeyboardMarkup(inline_keyboard=_admin_rows)
 
 
 # ---------- АДМИН ПАНЕЛЬ ----------
@@ -306,6 +319,70 @@ async def mark_thinking(message: Message):
         await message.answer(
             "Пример:\n\n"
             "/thinking 6809939303"
+        )
+
+
+# ---------- CRM: БЫСТРАЯ ЗАМЕТКА ----------
+
+@router.message(Command("note"))
+async def add_note(message: Message):
+
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    try:
+
+        raw = message.text.replace("/note", "", 1).strip()
+        user_id_str, text = raw.split(maxsplit=1)
+        user_id = int(user_id_str)
+
+        add_crm_note(user_id, text)
+
+        await message.answer(
+            f"📝 Заметка добавлена\n\nID: {user_id}\n{text}"
+        )
+
+    except Exception:
+
+        await message.answer(
+            "Пример:\n\n"
+            "/note 6809939303 Перезвонить на следующей неделе"
+        )
+
+
+# ---------- CRM: БЫСТРАЯ СМЕНА ЭТАПА ----------
+
+@router.message(Command("stage"))
+async def set_stage(message: Message):
+
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    stage_keys = {key for key, _ in CRM_STAGES}
+
+    try:
+
+        raw = message.text.replace("/stage", "", 1).strip()
+        user_id_str, stage_key = raw.split(maxsplit=1)
+        user_id = int(user_id_str)
+
+        if stage_key not in stage_keys:
+            raise ValueError("unknown stage")
+
+        set_crm_stage(user_id, stage_key)
+
+        stage_label = dict(CRM_STAGES)[stage_key]
+        await message.answer(
+            f"📈 Этап обновлён\n\nID: {user_id}\nЭтап: {stage_label}"
+        )
+
+    except Exception:
+
+        stages_list = "\n".join(f"{key} — {label}" for key, label in CRM_STAGES)
+        await message.answer(
+            "Пример:\n\n"
+            "/stage 6809939303 booking\n\n"
+            f"Доступные этапы:\n{stages_list}"
         )
         # ---------- РАССЫЛКА ----------
 

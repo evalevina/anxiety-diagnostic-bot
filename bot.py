@@ -26,6 +26,7 @@ from handlers.fallback import router as fallback_router
 from database import init_db
 from funnel_worker import start_funnel_worker
 from web_server import start_web_server
+from crm_reminders import start_crm_reminder_worker
 
 # Логи: в файл + в консоль
 _log_dir = os.path.dirname(os.path.abspath(__file__))
@@ -94,6 +95,10 @@ async def main():
 
     asyncio.create_task(
         start_web_server(bot)
+    )
+
+    asyncio.create_task(
+        start_crm_reminder_worker(bot)
     )
 
     logger.info("Bot started OK")

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRM — Ева Левина</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+
+<!-- ЛОГИН -->
+<section id="screen-login" class="screen">
+  <form id="login-form" class="login-card">
+    <h1>CRM</h1>
+    <p class="hint">Личная панель — только для Евы</p>
+    <input type="password" id="login-password" placeholder="Пароль" autocomplete="current-password">
+    <div id="login-error" class="error"></div>
+    <button type="submit" class="btn-primary">Войти</button>
+  </form>
+</section>
+
+<!-- ОСНОВНОЙ ЭКРАН -->
+<section id="screen-app" class="screen hidden">
+  <header class="topbar">
+    <h1>Клиенты</h1>
+    <input type="search" id="search-input" placeholder="Поиск по имени или username…">
+    <button id="logout-btn" class="btn-ghost">Выйти</button>
+  </header>
+
+  <div id="board" class="board"></div>
+</section>
+
+<!-- КАРТОЧКА КЛИЕНТА -->
+<div id="overlay" class="overlay hidden"></div>
+<aside id="client-panel" class="client-panel hidden">
+  <button id="panel-close" class="panel-close">×</button>
+  <div id="panel-content"><div class="center-note"><div class="spinner"></div></div></div>
+</aside>
+
+<script src="app.js?v=1"></script>
+</body>
+</html>

@@ -8,6 +8,20 @@ def connect():
     return sqlite3.connect("users.db")
 
 
+# Этапы воронки CRM — единый источник правды (ключ хранится в users.crm_stage,
+# русская подпись только для отображения; переименование подписи не должно
+# ломать авто-определение этапа, поэтому ключи английские и стабильные).
+CRM_STAGES = [
+    ("new_lead", "Новый лид"),
+    ("in_quiz", "Проходит тест"),
+    ("thinking", "Увидел оффер / думает"),
+    ("bought", "Купил разбор"),
+    ("booking", "Запись на сессию"),
+    ("client", "Был на сессии"),
+    ("inactive", "Неактивен"),
+]
+
+
 def init_db():
 
     conn = connect()
@@ -167,6 +181,30 @@ def init_db():
             cursor.execute(f"ALTER TABLE users ADD COLUMN {col}")
         except Exception:
             pass
+
+    # CRM: ручной этап воронки (NULL = используем авто-определение по
+    # существующим полям, см. crm_stage_for) и когда он в последний раз менялся
+
+    for col in ["crm_stage TEXT", "crm_stage_updated_at INTEGER"]:
+        try:
+            cursor.execute(f"ALTER TABLE users ADD COLUMN {col}")
+        except Exception:
+            pass
+
+    # CRM: заметки о клиенте, с опциональным напоминанием (reminder_at NULL —
+    # обычная заметка без напоминания)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS crm_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        text TEXT,
+        created_at INTEGER,
+        reminder_at INTEGER,
+        reminder_done INTEGER DEFAULT 0,
+        notified INTEGER DEFAULT 0
+    )
+    """)
 
     conn.commit()
     conn.close()
@@ -1401,3 +1439,255 @@ def get_funnel_stats():
     conn.close()
 
     return stats
+
+
+# ---------------- CRM ----------------
+
+
+def get_user_payments(user_id):
+    """Возвращает (payment_id, payment_type, created_at, payment_url)
+    от новых к старым."""
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT payment_id, payment_type, created_at, payment_url FROM payments
+    WHERE user_id=? ORDER BY created_at DESC, id DESC
+    """, (user_id,))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return rows
+
+
+def _crm_stage_for(started_quiz, finished, bought, latest_booking_status,
+                    latest_booking_date, today_str):
+    """Авто-определение этапа воронки по существующим полям — используется,
+    когда users.crm_stage не выставлен вручную (NULL). Последняя запись
+    'confirmed' с прошедшей датой считается уже отработанной сессией."""
+
+    if latest_booking_status == "pending":
+        return "booking"
+
+    if latest_booking_status == "confirmed":
+        if latest_booking_date and latest_booking_date < today_str:
+            return "client"
+        return "booking"
+
+    # latest_booking_status в ("declined", None) — записи либо не было,
+    # либо отклонена, дальше смотрим на общий прогресс по тесту/оплате
+
+    if bought:
+        return "bought"
+
+    if finished:
+        return "thinking"
+
+    if started_quiz:
+        return "in_quiz"
+
+    return "new_lead"
+
+
+def get_crm_client_list(search=None):
+    """Список клиентов для канбана/таблицы: профиль + авто/ручной этап +
+    последняя активность. search фильтруется в Python (регистронезависимо),
+    а не через SQL LIKE/COLLATE NOCASE — у SQLite нет таблицы регистров для
+    кириллицы без ICU-расширения, так что 'бор' не находил бы 'Борис'. Для
+    практики одного психолога (не тысячи строк) это не проблема с
+    производительностью."""
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT u.user_id, u.username, u.first_name, u.last_name, u.anxiety_type,
+           u.bought, u.started_quiz, u.finished, u.crm_stage, u.crm_stage_updated_at,
+           (SELECT MAX(created_at) FROM messages m WHERE m.user_id = u.user_id) AS last_activity_at,
+           (SELECT status FROM bookings b WHERE b.user_id = u.user_id
+            ORDER BY b.created_at DESC, b.id DESC LIMIT 1) AS latest_booking_status,
+           (SELECT date_str FROM bookings b WHERE b.user_id = u.user_id
+            ORDER BY b.created_at DESC, b.id DESC LIMIT 1) AS latest_booking_date
+    FROM users u
+    ORDER BY last_activity_at DESC
+    """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    today_str = time.strftime("%Y%m%d")
+    search_lower = search.lower() if search else None
+
+    clients = []
+    for (user_id, username, first_name, last_name, anxiety_type, bought,
+         started_quiz, finished, crm_stage, crm_stage_updated_at, last_activity_at,
+         latest_booking_status, latest_booking_date) in rows:
+
+        if search_lower:
+            haystack = " ".join(filter(None, [username, first_name, last_name])).lower()
+            if search_lower not in haystack:
+                continue
+
+        stage = crm_stage or _crm_stage_for(
+            started_quiz, finished, bought, latest_booking_status,
+            latest_booking_date, today_str
+        )
+        clients.append({
+            "user_id": user_id,
+            "username": username,
+            "first_name": first_name,
+            "last_name": last_name,
+            "anxiety_type": anxiety_type,
+            "bought": bool(bought),
+            "stage": stage,
+            "stage_is_manual": crm_stage is not None,
+            "stage_updated_at": crm_stage_updated_at,
+            "last_activity_at": last_activity_at,
+        })
+
+    return clients
+
+
+def get_crm_client_detail(user_id):
+    """Полная карточка клиента для CRM: профиль + записи + платежи + дневник
+    + история теста + заметки — один словарь на все нужды карточки."""
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT user_id, username, first_name, last_name, phone, anxiety_type,
+           finished, bought, thinking, source, crm_stage, crm_stage_updated_at
+    FROM users WHERE user_id=?
+    """, (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    (uid, username, first_name, last_name, phone, anxiety_type, finished,
+     bought, thinking, source, crm_stage, crm_stage_updated_at) = row
+
+    return {
+        "user_id": uid,
+        "username": username,
+        "first_name": first_name,
+        "last_name": last_name,
+        "phone": phone,
+        "anxiety_type": anxiety_type,
+        "finished": bool(finished),
+        "bought": bool(bought),
+        "thinking": bool(thinking),
+        "source": source,
+        "stage": crm_stage,
+        "stage_updated_at": crm_stage_updated_at,
+        "bookings": [
+            {"date_str": d, "time_str": t, "status": s, "created_at": c}
+            for d, t, s, c in get_user_bookings(user_id, limit=50)
+        ],
+        "payments": [
+            {"payment_id": pid, "payment_type": pt, "created_at": c, "payment_url": url}
+            for pid, pt, c, url in get_user_payments(user_id)
+        ],
+        "diary": [
+            {"score": score, "note": note, "created_at": c}
+            for score, note, c in get_diary_history(user_id, days=365)
+        ],
+        "quiz_history": [
+            {"anxiety_type": t, "created_at": c}
+            for t, c in get_quiz_result_history(user_id, limit=50)
+        ],
+        "notes": get_crm_notes(user_id),
+    }
+
+
+def set_crm_stage(user_id, stage_key):
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "UPDATE users SET crm_stage=?, crm_stage_updated_at=? WHERE user_id=?",
+        (stage_key, int(time.time()), user_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def add_crm_note(user_id, text, reminder_at=None):
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    INSERT INTO crm_notes (user_id, text, created_at, reminder_at)
+    VALUES (?, ?, ?, ?)
+    """, (user_id, text, int(time.time()), reminder_at))
+
+    conn.commit()
+    conn.close()
+
+
+def get_crm_notes(user_id):
+    """Возвращает список словарей — заметки клиента, новые сверху."""
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT id, text, created_at, reminder_at, reminder_done FROM crm_notes
+    WHERE user_id=? ORDER BY created_at DESC, id DESC
+    """, (user_id,))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [
+        {"id": i, "text": t, "created_at": c, "reminder_at": r, "reminder_done": bool(d)}
+        for i, t, c, r, d in rows
+    ]
+
+
+def complete_crm_reminder(note_id):
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("UPDATE crm_notes SET reminder_done=1 WHERE id=?", (note_id,))
+
+    conn.commit()
+    conn.close()
+
+
+def get_due_reminders():
+    """Напоминания, срок которых наступил и о которых ещё не сообщили админу.
+    Возвращает (id, user_id, text, reminder_at)."""
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    now = int(time.time())
+    cursor.execute("""
+    SELECT id, user_id, text, reminder_at FROM crm_notes
+    WHERE reminder_at IS NOT NULL AND reminder_at<=? AND notified=0
+    """, (now,))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return rows
+
+
+def mark_reminder_notified(note_id):
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("UPDATE crm_notes SET notified=1 WHERE id=?", (note_id,))
+
+    conn.commit()
+    conn.close()
