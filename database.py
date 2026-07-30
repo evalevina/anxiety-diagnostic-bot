@@ -64,6 +64,14 @@ def init_db():
     )
     """)
 
+    # CRM-панель листает переписку одного клиента (WHERE user_id ORDER BY id)
+    # и считает последнюю активность по MAX(created_at) для каждого клиента —
+    # без индекса это полный проход по всей истории всех диалогов.
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_messages_user_id
+    ON messages (user_id, id)
+    """)
+
     # задачи воронки
 
     cursor.execute("""
@@ -1559,7 +1567,8 @@ def get_crm_client_detail(user_id):
 
     cursor.execute("""
     SELECT user_id, username, first_name, last_name, phone, anxiety_type,
-           finished, bought, thinking, source, crm_stage, crm_stage_updated_at
+           finished, bought, thinking, source, crm_stage, crm_stage_updated_at,
+           started_quiz
     FROM users WHERE user_id=?
     """, (user_id,))
     row = cursor.fetchone()
@@ -1569,7 +1578,24 @@ def get_crm_client_detail(user_id):
         return None
 
     (uid, username, first_name, last_name, phone, anxiety_type, finished,
-     bought, thinking, source, crm_stage, crm_stage_updated_at) = row
+     bought, thinking, source, crm_stage, crm_stage_updated_at,
+     started_quiz) = row
+
+    bookings = [
+        {"date_str": d, "time_str": t, "status": s, "created_at": c}
+        for d, t, s, c in get_user_bookings(user_id, limit=50)
+    ]
+
+    # Этап считаем так же, как в списке (get_crm_client_list): при NULL в
+    # crm_stage — авто-определение. Иначе селект в карточке показывал бы
+    # «Новый лид» для всех, кому этап не выставляли руками, и расходился бы
+    # с колонкой канбана, откуда карточку и открыли.
+    stage = crm_stage or _crm_stage_for(
+        started_quiz, finished, bought,
+        bookings[0]["status"] if bookings else None,
+        bookings[0]["date_str"] if bookings else None,
+        time.strftime("%Y%m%d"),
+    )
 
     return {
         "user_id": uid,
@@ -1582,12 +1608,10 @@ def get_crm_client_detail(user_id):
         "bought": bool(bought),
         "thinking": bool(thinking),
         "source": source,
-        "stage": crm_stage,
+        "stage": stage,
+        "stage_is_manual": crm_stage is not None,
         "stage_updated_at": crm_stage_updated_at,
-        "bookings": [
-            {"date_str": d, "time_str": t, "status": s, "created_at": c}
-            for d, t, s, c in get_user_bookings(user_id, limit=50)
-        ],
+        "bookings": bookings,
         "payments": [
             {"payment_id": pid, "payment_type": pt, "created_at": c, "payment_url": url}
             for pid, pt, c, url in get_user_payments(user_id)
@@ -1601,6 +1625,49 @@ def get_crm_client_detail(user_id):
             for t, c in get_quiz_result_history(user_id, limit=50)
         ],
         "notes": get_crm_notes(user_id),
+    }
+
+
+def get_crm_dialog(user_id, limit=50, before_id=None):
+    """Порция диалога для CRM-панели, в хронологическом порядке.
+
+    Листаем от новых к старым: без before_id отдаём последние `limit`
+    сообщений, с before_id — следующую порцию строго старше уже загруженных
+    ("показать раньше"). Сортировка по id, а не по created_at: соседние
+    сообщения диалога часто попадают в одну и ту же секунду, и по времени
+    их порядок неустойчив.
+
+    has_more считаем, запросив на одну строку больше лимита — так фронт
+    знает, показывать ли кнопку догрузки, без второго COUNT-запроса.
+    """
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    if before_id:
+        cursor.execute("""
+        SELECT id, role, text, created_at FROM messages
+        WHERE user_id=? AND id<?
+        ORDER BY id DESC LIMIT ?
+        """, (user_id, before_id, limit + 1))
+    else:
+        cursor.execute("""
+        SELECT id, role, text, created_at FROM messages
+        WHERE user_id=?
+        ORDER BY id DESC LIMIT ?
+        """, (user_id, limit + 1))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    has_more = len(rows) > limit
+
+    return {
+        "messages": [
+            {"id": mid, "role": role, "text": text, "created_at": c}
+            for mid, role, text, c in reversed(rows[:limit])
+        ],
+        "has_more": has_more,
     }
 
 

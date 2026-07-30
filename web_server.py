@@ -14,7 +14,7 @@ from database import (
     save_booking, get_user_type, get_latest_payment_id, get_payment_owner,
     get_quiz_result_latest, get_quiz_result_history, get_user_bookings,
     get_diary_history, CRM_STAGES, get_crm_client_list, get_crm_client_detail,
-    set_crm_stage, add_crm_note, complete_crm_reminder,
+    set_crm_stage, add_crm_note, complete_crm_reminder, get_crm_dialog,
 )
 from config import ADMIN_ID, WEBHOOK_SECRET, SESSION_PRICE
 from materials import send_materials
@@ -458,6 +458,20 @@ async def handle_crm_client_detail(request):
     return web.json_response(detail)
 
 
+async def handle_crm_dialog(request):
+    if not _crm_authorized(request):
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    try:
+        user_id = int(request.match_info["user_id"])
+        before_raw = request.rel_url.query.get("before_id")
+        before_id = int(before_raw) if before_raw else None
+    except ValueError:
+        return web.json_response({"error": "bad_request"}, status=400)
+
+    return web.json_response(get_crm_dialog(user_id, before_id=before_id))
+
+
 async def handle_crm_stage_update(request):
     if not _crm_authorized(request):
         return web.json_response({"error": "unauthorized"}, status=401)
@@ -532,6 +546,7 @@ async def start_web_server(bot, port=8080):
     app.router.add_get("/api/crm/stages", handle_crm_stages)
     app.router.add_get("/api/crm/clients", handle_crm_clients)
     app.router.add_get("/api/crm/client/{user_id}", handle_crm_client_detail)
+    app.router.add_get("/api/crm/client/{user_id}/dialog", handle_crm_dialog)
     app.router.add_post("/api/crm/client/{user_id}/stage", handle_crm_stage_update)
     app.router.add_post("/api/crm/client/{user_id}/note", handle_crm_note_add)
     app.router.add_post("/api/crm/note/{note_id}/done", handle_crm_note_done)

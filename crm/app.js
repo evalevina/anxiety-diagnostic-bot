@@ -10,6 +10,23 @@ let STAGES = [];
 let currentSearch = "";
 let panelUserId = null;
 
+// Диалог открытого клиента: копим порциями от новых к старым, oldestId —
+// курсор для догрузки ("показать раньше").
+let dialogMessages = [];
+let dialogHasMore = false;
+let dialogOldestId = null;
+
+// Всё, что пришло из базы, вставляется через innerHTML — а текст сообщений
+// пишут сами клиенты в Telegram, так что любой <тег> из переписки иначе
+// исполнился бы прямо в панели Евы.
+function esc(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 async function api(path, opts = {}) {
   const res = await fetch(path, {
     ...opts,
@@ -91,7 +108,7 @@ function relativeActivity(ts) {
 
 function stageOptionsHtml(selected) {
   return STAGES.map(
-    (s) => `<option value="${s.key}" ${s.key === selected ? "selected" : ""}>${s.label}</option>`
+    (s) => `<option value="${esc(s.key)}" ${s.key === selected ? "selected" : ""}>${esc(s.label)}</option>`
   ).join("");
 }
 
@@ -110,7 +127,7 @@ function renderBoard(clients) {
       const card = document.createElement("div");
       card.className = "card";
       card.innerHTML = `
-        <div class="card-name">${clientDisplayName(c)}</div>
+        <div class="card-name">${esc(clientDisplayName(c))}</div>
         <div class="card-meta">${TYPE_LABELS[c.anxiety_type] || "тип не определён"} · ${relativeActivity(c.last_activity_at)}</div>
         <select class="card-select">${stageOptionsHtml(c.stage)}</select>
       `;
@@ -162,6 +179,138 @@ function formatBookingDate(dateStr) {
   return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", weekday: "short" });
 }
 
+// ── Диалог (консоль переписки в карточке) ───────────────────────────────
+
+function formatUnixTime(ts) {
+  if (!ts) return "";
+  return new Date(ts * 1000).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+
+function sameDay(a, b) {
+  return new Date(a * 1000).toDateString() === new Date(b * 1000).toDateString();
+}
+
+// Разделитель дня внутри переписки: «Сегодня»/«Вчера» вместо даты, а год —
+// только если переписка не этого года. Полный формат formatUnixDate («29 июля
+// 2026 г.») для лога слишком шумный: он повторяется через каждые пару экранов.
+function formatDialogDay(ts) {
+  const d = new Date(ts * 1000);
+  const now = new Date();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const daysAgo = Math.floor((midnight - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+
+  if (daysAgo === 0) return "Сегодня";
+  if (daysAgo === 1) return "Вчера";
+
+  return d.toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    ...(d.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
+  });
+}
+
+// Ссылки в переписке (клиенты присылают их, и на них надо уметь перейти).
+// Линкуем уже экранированный текст, а не исходный: иначе пришлось бы
+// собирать <a> из неэкранированных кусков и вся защита esc() рассыпается.
+// Схемы только http/https — javascript: через этот шаблон не пройдёт.
+function linkifyEscaped(escaped) {
+  return escaped.replace(/https?:\/\/[^\s]+/g, (raw) => {
+    // Точка, запятая, закрывающая скобка или кавычка в конце — почти всегда
+    // пунктуация предложения, а не часть адреса.
+    let url = raw;
+    let tail = "";
+    let m;
+    while ((m = url.match(/(&(?:quot|amp|lt|gt|#39);|[.,;:!?)\]])$/))) {
+      tail = m[0] + tail;
+      url = url.slice(0, -m[0].length);
+    }
+    if (!url) return raw;
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>${tail}`;
+  });
+}
+
+function dialogMessageHtml(m, prev) {
+  // ai_user/ai_bot — переписка с AI-помощником, user/bot — обычные шаги бота
+  // и нажатия кнопок. Слева клиент, справа бот, как в мессенджере.
+  const fromClient = m.role === "user" || m.role === "ai_user";
+  const fromAi = m.role === "ai_user" || m.role === "ai_bot";
+
+  const daySep = !prev || !sameDay(prev.created_at, m.created_at)
+    ? `<div class="dialog-day">${esc(formatDialogDay(m.created_at))}</div>`
+    : "";
+
+  return `${daySep}
+    <div class="dialog-msg ${fromClient ? "from-client" : "from-bot"}">
+      <div class="dialog-bubble">${linkifyEscaped(esc(m.text))}</div>
+      <div class="dialog-time">${esc(formatUnixTime(m.created_at))}${fromAi ? " · AI" : ""}</div>
+    </div>`;
+}
+
+function renderDialogLog(userId) {
+  const log = document.getElementById("dialog-log");
+  if (!log) return;
+
+  if (!dialogMessages.length) {
+    log.innerHTML = `<p class="hint">Переписки пока нет.</p>`;
+    return;
+  }
+
+  let html = dialogHasMore
+    ? `<button type="button" class="dialog-more" id="dialog-more">Показать раньше</button>`
+    : `<div class="dialog-start">начало переписки</div>`;
+
+  let prev = null;
+  dialogMessages.forEach((m) => {
+    html += dialogMessageHtml(m, prev);
+    prev = m;
+  });
+  log.innerHTML = html;
+
+  const moreBtn = document.getElementById("dialog-more");
+  if (moreBtn) {
+    moreBtn.addEventListener("click", () => {
+      moreBtn.disabled = true;
+      moreBtn.textContent = "Загружаю…";
+      loadDialog(userId, { more: true });
+    });
+  }
+}
+
+async function loadDialog(userId, { more = false } = {}) {
+  const log = document.getElementById("dialog-log");
+  if (!log) return;
+
+  if (!more) {
+    log.innerHTML = `<div class="center-note"><div class="spinner"></div></div>`;
+  }
+
+  let data;
+  try {
+    const query = more && dialogOldestId ? `?before_id=${dialogOldestId}` : "";
+    const res = await api(`/api/crm/client/${userId}/dialog${query}`);
+    data = await res.json();
+  } catch (e) {
+    if (panelUserId === userId) {
+      log.innerHTML = `<p class="hint">Не удалось загрузить переписку.</p>`;
+    }
+    return;
+  }
+
+  // Пока грузилось, панель могли закрыть или открыть другого клиента —
+  // тогда дописывать этот ответ в лог уже нельзя.
+  if (panelUserId !== userId) return;
+
+  dialogMessages = more ? [...data.messages, ...dialogMessages] : data.messages;
+  dialogHasMore = data.has_more;
+  if (dialogMessages.length) dialogOldestId = dialogMessages[0].id;
+
+  // Лог перерисовывается целиком, поэтому при догрузке старых сообщений
+  // возвращаем прокрутку на прежнее место (иначе взгляд улетает наверх).
+  const heightBefore = more ? log.scrollHeight : 0;
+  renderDialogLog(userId);
+  log.scrollTop = more ? log.scrollHeight - heightBefore : log.scrollHeight;
+}
+
 function renderClientPanel(detail) {
   const el = document.getElementById("panel-content");
   const now = Date.now() / 1000;
@@ -186,8 +335,8 @@ function renderClientPanel(detail) {
   const diaryHtml = diaryLast.length
     ? diaryLast.map((d) => `
         <div class="list-item">
-          <div>${formatUnixDate(d.created_at)} — тревога ${d.score}/10</div>
-          ${d.note ? `<div class="hint">${d.note}</div>` : ""}
+          <div>${formatUnixDate(d.created_at)} — тревога ${esc(d.score)}/10</div>
+          ${d.note ? `<div class="hint">${esc(d.note)}</div>` : ""}
         </div>`).join("")
     : `<p class="hint">Дневник пуст.</p>`;
 
@@ -196,7 +345,7 @@ function renderClientPanel(detail) {
         const due = n.reminder_at && !n.reminder_done && n.reminder_at <= now;
         return `
         <div class="list-item note-item ${due ? "reminder-due" : ""}">
-          <div>${n.text}</div>
+          <div>${esc(n.text)}</div>
           <div class="hint">${formatUnixDate(n.created_at)}${n.reminder_at ? ` · напоминание ${formatUnixDate(n.reminder_at)}` : ""}</div>
           ${n.reminder_at && !n.reminder_done ? `<button class="note-done-btn" data-note-id="${n.id}">Готово</button>` : ""}
         </div>`;
@@ -204,12 +353,17 @@ function renderClientPanel(detail) {
     : `<p class="hint">Заметок пока нет.</p>`;
 
   el.innerHTML = `
-    <div class="panel-name">${clientDisplayName(detail)}</div>
-    <div class="panel-sub">${detail.username ? `@${detail.username} · ` : ""}${TYPE_LABELS[detail.anxiety_type] || "тип не определён"}${detail.phone ? ` · ${detail.phone}` : ""}</div>
+    <div class="panel-name">${esc(clientDisplayName(detail))}</div>
+    <div class="panel-sub">${detail.username ? `@${esc(detail.username)} · ` : ""}${TYPE_LABELS[detail.anxiety_type] || "тип не определён"}${detail.phone ? ` · ${esc(detail.phone)}` : ""}</div>
 
     <div class="panel-stage-row">
       <label class="hint">Этап</label>
       <select id="panel-stage-select">${stageOptionsHtml(detail.stage)}</select>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-section-title">Диалог</div>
+      <div id="dialog-log" class="dialog-log"><div class="center-note"><div class="spinner"></div></div></div>
     </div>
 
     <div class="panel-section">
@@ -266,10 +420,17 @@ function renderClientPanel(detail) {
     });
     openClientPanel(detail.user_id);
   });
+
+  // Переписка грузится отдельным запросом — карточка не ждёт её, чтобы
+  // открыться, а история может быть в тысячи сообщений.
+  loadDialog(detail.user_id);
 }
 
 async function openClientPanel(userId) {
   panelUserId = userId;
+  dialogMessages = [];
+  dialogHasMore = false;
+  dialogOldestId = null;
   document.getElementById("overlay").classList.remove("hidden");
   document.getElementById("client-panel").classList.remove("hidden");
   document.getElementById("panel-content").innerHTML = `<div class="center-note"><div class="spinner"></div></div>`;
