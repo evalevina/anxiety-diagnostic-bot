@@ -79,6 +79,15 @@ h1 {
   line-height: 1.4;
 }
 
+/* Оплата = акцепт оферты, поэтому ссылка на неё должна быть на том же экране,
+   где нажимают «Оплатить», — в чате она есть, в Mini App её не хватало. */
+.payment-legal {
+  font-size: 12px;
+  text-align: center;
+  margin: 12px 0 0;
+}
+.payment-legal a { color: inherit; text-decoration: underline; }
+
 .hidden {
   display: none !important;
 }

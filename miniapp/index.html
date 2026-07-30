@@ -6,7 +6,7 @@
 <title>Запись на сессию</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -77,6 +77,11 @@
     </div>
     <div id="payment-error" class="error"></div>
     <button id="payment-btn" class="pay-btn hidden"></button>
+    <p class="hint payment-legal">
+      Оплата означает принятие
+      <a href="https://levinaeva.com/oferta.html" target="_blank" rel="noopener">условий оферты</a>
+      и <a href="https://levinaeva.com/privacy.html" target="_blank" rel="noopener">политики обработки данных</a>.
+    </p>
     <div id="payment-waiting" class="center-note hidden">
       <div class="spinner"></div>
       <p class="hint" style="margin-bottom:0">Ожидаем подтверждения оплаты — обычно это занимает несколько секунд…</p>

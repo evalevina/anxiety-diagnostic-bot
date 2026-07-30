@@ -35,7 +35,7 @@ MINIAPP_URL = os.getenv("MINIAPP_URL", "")
 # index.html по точному URL и не всегда уважает Cache-Control на уже
 # сохранённой копии, так что смена файлов на сервере может быть не видна
 # в уже открытом Mini App, пока не поменяется сам входной URL.
-MINIAPP_VERSION = "7"
+MINIAPP_VERSION = "8"
 
 
 def miniapp_url(screen, **params):
