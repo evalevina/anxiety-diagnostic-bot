@@ -51,4 +51,4 @@ CRM_SESSION_SECRET = os.getenv("CRM_SESSION_SECRET", "")
 
 # Тот же смысл, что MINIAPP_VERSION — версионировать входной URL панели,
 # чтобы обычное браузерное кеширование index.html не пряталось от деплоя.
-CRM_VERSION = "2"
+CRM_VERSION = "3"
