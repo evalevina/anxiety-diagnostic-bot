@@ -1,0 +1,668 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&display=swap');
+
+:root {
+  --brand-accent: #9C8469;
+  --brand-accent-light: #C4A882;
+  --brand-line: #E5E0DA;
+  --brand-soft: #F4F1ED;
+  --brand-black: #171310;
+  --brand-white: #FAFAF8;
+  --brand-gray: #8a8378;
+  --brand-error: #B3564A;
+  --brand-success: #4A7C59;
+
+  --bg: var(--tg-theme-bg-color, var(--brand-white));
+  --bg-soft: var(--tg-theme-secondary-bg-color, var(--brand-soft));
+  --text: var(--tg-theme-text-color, var(--brand-black));
+  --hint: var(--tg-theme-hint-color, var(--brand-gray));
+  --line: var(--brand-line);
+  --accent: var(--brand-accent);
+  --accent-text: #ffffff;
+  --shadow-soft: 0 3px 14px -8px rgba(23, 19, 16, 0.22);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--tg-theme-bg-color, #17130f);
+    --bg-soft: var(--tg-theme-secondary-bg-color, #241f1a);
+    --text: var(--tg-theme-text-color, #f2ede6);
+    --hint: var(--tg-theme-hint-color, #a89e90);
+    --line: #362f27;
+    --accent: var(--brand-accent-light);
+    --accent-text: #171310;
+    --shadow-soft: 0 3px 16px -6px rgba(0, 0, 0, 0.5);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 20px 18px 28px;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  background:
+    radial-gradient(120% 55% at 50% -12%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1 {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  margin: 4px 0 6px;
+  color: var(--text);
+}
+
+.hint {
+  color: var(--hint);
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin: 0 0 18px;
+}
+
+.error {
+  color: var(--brand-error);
+  font-size: 13.5px;
+  min-height: 18px;
+  line-height: 1.4;
+}
+
+/* Оплата = акцепт оферты, поэтому ссылка на неё должна быть на том же экране,
+   где нажимают «Оплатить», — в чате она есть, в Mini App её не хватало. */
+.payment-legal {
+  font-size: 12px;
+  text-align: center;
+  margin: 12px 0 0;
+}
+.payment-legal a { color: inherit; text-decoration: underline; }
+
+.hidden {
+  display: none !important;
+}
+
+.screen {
+  padding-top: 4px;
+  animation: screen-in 0.28s ease both;
+}
+
+@keyframes screen-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.booking-hero {
+  display: block;
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 18px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-soft);
+}
+
+/* ── Форма ─────────────────────────────────────────────────────────────── */
+
+textarea {
+  width: 100%;
+  padding: 14px 16px;
+  font-family: inherit;
+  font-size: 16px;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  margin-bottom: 10px;
+  transition: border-color 0.15s ease;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ── Шаги бронирования ────────────────────────────────────────────────── */
+
+.steps {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.step-dot {
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  border: 1.5px solid var(--line);
+  color: var(--hint);
+  background: var(--bg-soft);
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.step-label {
+  font-size: 10px;
+  color: var(--hint);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.step.active .step-dot {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-soft));
+}
+
+.step.active .step-label {
+  color: var(--text);
+}
+
+.step.done .step-dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.step-line {
+  flex: 1 1 auto;
+  height: 1.5px;
+  background: var(--line);
+  margin: 12px 6px 0;
+}
+
+/* ── Выбор дня ─────────────────────────────────────────────────────────── */
+
+.day-picker {
+  margin-top: 6px;
+}
+
+.month-label {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--hint);
+  margin: 16px 0 8px;
+  text-transform: capitalize;
+}
+
+.month-label:first-child {
+  margin-top: 0;
+}
+
+.day-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.day-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 0 9px;
+  border-radius: 13px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+  transition: transform 0.1s ease, border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.day-chip .wd {
+  font-size: 10px;
+  color: var(--hint);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.day-chip .dn {
+  font-size: 16.5px;
+  font-weight: 600;
+}
+
+.day-chip:active {
+  transform: scale(0.94);
+}
+
+.day-chip.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.day-chip.selected .wd {
+  color: var(--accent-text);
+  opacity: 0.85;
+}
+
+/* ── Слоты времени ─────────────────────────────────────────────────────── */
+
+.slots {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.slot-btn {
+  padding: 13px 0;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  color: var(--text);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.slot-btn:hover {
+  border-color: var(--accent);
+}
+
+.slot-btn:active {
+  transform: scale(0.96);
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+
+/* ── Кнопки ────────────────────────────────────────────────────────────── */
+
+.back {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 500;
+  padding: 6px 0 18px;
+  margin: 0;
+  display: inline-block;
+  cursor: pointer;
+}
+
+.pay-btn {
+  width: 100%;
+  padding: 16px 0;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-text);
+  cursor: pointer;
+  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.15s ease;
+}
+
+.pay-btn:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+.pay-btn:disabled {
+  opacity: 0.6;
+  box-shadow: none;
+}
+
+/* ── Спиннер / загрузка ────────────────────────────────────────────────── */
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid var(--line);
+  border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+  margin: 6px auto 14px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.center-note {
+  text-align: center;
+  padding: 24px 0;
+}
+
+/* ── Результат ─────────────────────────────────────────────────────────── */
+
+.result-image {
+  width: 100%;
+  border-radius: 18px;
+  margin-bottom: 14px;
+  box-shadow: 0 8px 24px -12px rgba(0,0,0,0.35);
+}
+
+.body-card {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-soft);
+}
+
+.card-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  margin-bottom: 9px;
+}
+
+.card-label svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.type-badge {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 15%, var(--bg-soft));
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.type-badge svg {
+  width: 27px;
+  height: 27px;
+}
+
+.type-icon-sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 15%, var(--bg-soft));
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.type-icon-sm svg {
+  width: 17px;
+  height: 17px;
+}
+
+.list-item.with-icon {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.body-text {
+  font-size: 14.5px;
+  line-height: 1.65;
+  white-space: pre-line;
+  margin: 0;
+  color: var(--text);
+}
+
+.body-text + .body-text {
+  margin-top: 4px;
+}
+
+/* ── Кабинет: hero-карточка результата ────────────────────────────────── */
+
+.hero-card {
+  position: relative;
+  border-radius: 20px;
+  padding: 20px 20px 18px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--brand-accent-light) 100%);
+  background-size: cover;
+  box-shadow: var(--shadow-soft);
+  min-height: 128px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.hero-card.with-photo::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(23, 19, 16, 0.1) 0%, rgba(23, 19, 16, 0.8) 100%);
+}
+
+.hero-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-badge {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(255, 255, 255, 0.25);
+  padding: 5px 10px;
+  border-radius: 999px;
+  margin-bottom: 34px;
+}
+
+.hero-name {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 21px;
+  font-weight: 500;
+  line-height: 1.2;
+  margin-bottom: 3px;
+}
+
+.hero-date {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+/* ── Кабинет: быстрые действия ─────────────────────────────────────────── */
+
+.quick-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.quick-action {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 14px 8px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  box-shadow: var(--shadow-soft);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.quick-action:active {
+  transform: scale(0.96);
+}
+
+.qa-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--accent) 15%, var(--bg-soft));
+  color: var(--accent);
+}
+
+.qa-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ── Кабинет: промо-карточка ───────────────────────────────────────────── */
+
+.promo-card {
+  border-radius: 18px;
+  padding: 16px 18px;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, var(--brand-black) 0%, #332b22 100%);
+  color: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+@media (prefers-color-scheme: dark) {
+  .promo-card {
+    background: linear-gradient(135deg, #241f1a 0%, #3d342a 100%);
+  }
+}
+
+.promo-clickable {
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.promo-clickable:active {
+  transform: scale(0.98);
+}
+
+.promo-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.promo-sub {
+  font-size: 12.5px;
+  line-height: 1.45;
+  opacity: 0.82;
+}
+
+/* ── Кабинет: плавающий нижний таб-бар ────────────────────────────────── */
+
+.screen-cabinet {
+  padding-bottom: 92px;
+}
+
+.bottom-tabs {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 7px 6px;
+  box-shadow: 0 10px 30px -10px rgba(23, 19, 16, 0.4);
+  z-index: 10;
+}
+
+.bottom-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 7px 0 6px;
+  border: none;
+  border-radius: 14px;
+  background: none;
+  color: var(--hint);
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.bottom-tab svg {
+  width: 20px;
+  height: 20px;
+}
+
+.bottom-tab.active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+}
+
+/* ── Списки (записи / дневник / результат в кабинете) ─────────────────── */
+
+.list-item {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
+  margin-bottom: 10px;
+}
+
+.list-item:last-child {
+  margin-bottom: 0;
+}
+
+.list-item > div:first-child {
+  font-weight: 500;
+  font-size: 14.5px;
+}
+
+.list-item .hint {
+  margin: 4px 0 0;
+}
+
+#diary-chart {
+  width: 100%;
+  height: 130px;
+  margin-bottom: 16px;
+  display: block;
+}

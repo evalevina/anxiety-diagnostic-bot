@@ -1,0 +1,261 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&display=swap');
+
+:root {
+  --brand-accent: #9C8469;
+  --brand-accent-light: #C4A882;
+  --brand-line: #E5E0DA;
+  --brand-soft: #F4F1ED;
+  --brand-black: #171310;
+  --brand-white: #FAFAF8;
+  --brand-gray: #8a8378;
+  --brand-error: #B3564A;
+  --brand-success: #4A7C59;
+
+  --bg: var(--brand-white);
+  --bg-soft: var(--brand-soft);
+  --text: var(--brand-black);
+  --hint: var(--brand-gray);
+  --line: var(--brand-line);
+  --accent: var(--brand-accent);
+  --accent-text: #ffffff;
+  --shadow-soft: 0 3px 14px -8px rgba(23, 19, 16, 0.22);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17130f;
+    --bg-soft: #241f1a;
+    --text: #f2ede6;
+    --hint: #a89e90;
+    --line: #362f27;
+    --accent: var(--brand-accent-light);
+    --accent-text: #171310;
+    --shadow-soft: 0 3px 16px -6px rgba(0, 0, 0, 0.5);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1 {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 500;
+  margin: 0;
+  color: var(--text);
+}
+
+.hidden { display: none !important; }
+
+.hint { color: var(--hint); font-size: 13.5px; line-height: 1.5; }
+
+.error { color: var(--brand-error); font-size: 13.5px; min-height: 18px; }
+
+.spinner {
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 3px solid var(--line); border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite; margin: 20px auto;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.center-note { text-align: center; padding: 40px 0; }
+
+.btn-primary {
+  width: 100%; padding: 13px 0; border: none; border-radius: 999px;
+  background: var(--accent); color: var(--accent-text);
+  font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+}
+
+.btn-ghost {
+  padding: 9px 16px; border-radius: 999px; border: 1px solid var(--line);
+  background: transparent; color: var(--text); font-family: inherit;
+  font-size: 13.5px; font-weight: 500; cursor: pointer;
+}
+
+/* ── Логин ─────────────────────────────────────────────────────────────── */
+
+#screen-login {
+  min-height: 100%;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.login-card {
+  width: 320px; padding: 32px 28px; background: var(--bg-soft);
+  border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow-soft);
+}
+
+.login-card h1 { font-size: 26px; margin-bottom: 6px; }
+.login-card .hint { margin-bottom: 20px; }
+
+#login-password {
+  width: 100%; padding: 12px 14px; font-family: inherit; font-size: 15px;
+  color: var(--text); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 12px; margin-bottom: 10px;
+}
+#login-password:focus { outline: none; border-color: var(--accent); }
+
+/* ── Основной экран ────────────────────────────────────────────────────── */
+
+.topbar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 20px 28px; border-bottom: 1px solid var(--line);
+}
+.topbar h1 { font-size: 22px; flex: 0 0 auto; }
+#search-input {
+  flex: 1 1 auto; max-width: 360px; padding: 9px 14px; font-family: inherit;
+  font-size: 14px; color: var(--text); background: var(--bg-soft);
+  border: 1px solid var(--line); border-radius: 999px;
+}
+#search-input:focus { outline: none; border-color: var(--accent); }
+
+.board {
+  display: flex; gap: 16px; padding: 20px 28px 40px;
+  overflow-x: auto; align-items: flex-start;
+}
+
+.column {
+  flex: 0 0 260px; background: var(--bg-soft); border-radius: 16px;
+  padding: 14px; border: 1px solid var(--line);
+}
+.column-title {
+  font-size: 13px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.03em; color: var(--hint); margin-bottom: 12px;
+  display: flex; justify-content: space-between;
+}
+.column-count {
+  background: var(--line); color: var(--text); border-radius: 999px;
+  padding: 1px 8px; font-size: 11.5px;
+}
+
+.card {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 13px;
+  padding: 12px 14px; margin-bottom: 10px; box-shadow: var(--shadow-soft);
+  cursor: pointer; transition: transform 0.1s ease;
+}
+.card:hover { transform: translateY(-1px); }
+.card:last-child { margin-bottom: 0; }
+.card-name { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+.card-meta { font-size: 12px; color: var(--hint); }
+.card-select {
+  width: 100%; margin-top: 8px; padding: 6px 8px; font-family: inherit;
+  font-size: 12.5px; color: var(--text); background: var(--bg-soft);
+  border: 1px solid var(--line); border-radius: 8px;
+}
+
+/* ── Карточка клиента (боковая панель) ────────────────────────────────── */
+
+.overlay {
+  position: fixed; inset: 0; background: rgba(23,19,16,0.35); z-index: 20;
+}
+
+.client-panel {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 520px; max-width: 92vw;
+  background: var(--bg); border-left: 1px solid var(--line);
+  box-shadow: -12px 0 30px -14px rgba(0,0,0,0.35);
+  z-index: 21; overflow-y: auto; padding: 24px 26px 60px;
+  animation: panel-in 0.2s ease both;
+}
+@keyframes panel-in { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.panel-close {
+  position: absolute; top: 18px; right: 20px; width: 30px; height: 30px;
+  border-radius: 50%; border: none; background: var(--bg-soft); color: var(--text);
+  font-size: 18px; cursor: pointer; line-height: 1;
+}
+
+.panel-name { font-size: 22px; margin-bottom: 2px; }
+.panel-sub { color: var(--hint); font-size: 13.5px; margin-bottom: 18px; }
+
+.panel-stage-row { margin-bottom: 20px; }
+.panel-stage-row select {
+  width: 100%; padding: 10px 12px; font-family: inherit; font-size: 14px;
+  color: var(--text); background: var(--bg-soft); border: 1px solid var(--line);
+  border-radius: 10px; margin-top: 6px;
+}
+
+.panel-section { margin-bottom: 22px; }
+.panel-section-title {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--accent); margin-bottom: 10px;
+}
+
+.list-item {
+  padding: 10px 12px; border-radius: 11px; background: var(--bg-soft);
+  border: 1px solid var(--line); margin-bottom: 8px; font-size: 13.5px;
+}
+.list-item:last-child { margin-bottom: 0; }
+.list-item .hint { margin-top: 2px; }
+
+.note-item.reminder-due { border-color: var(--brand-error); }
+.note-done-btn {
+  border: none; background: none; color: var(--accent); font-family: inherit;
+  font-size: 12px; font-weight: 600; cursor: pointer; padding: 0; margin-top: 4px;
+}
+
+#note-form textarea {
+  width: 100%; padding: 10px 12px; font-family: inherit; font-size: 14px;
+  color: var(--text); background: var(--bg-soft); border: 1px solid var(--line);
+  border-radius: 10px; resize: vertical; margin-bottom: 8px;
+}
+#note-form input[type="datetime-local"] {
+  width: 100%; padding: 8px 10px; font-family: inherit; font-size: 13px;
+  color: var(--text); background: var(--bg-soft); border: 1px solid var(--line);
+  border-radius: 8px; margin-bottom: 8px;
+}
+#note-form .btn-primary { width: auto; padding: 9px 18px; font-size: 13.5px; }
+
+/* ── Диалог (консоль переписки внутри карточки) ────────────────────────── */
+
+.dialog-log {
+  max-height: 46vh; overflow-y: auto; padding: 12px;
+  background: var(--bg-soft); border: 1px solid var(--line); border-radius: 12px;
+  /* чтобы прокрутка переписки не перебрасывалась на саму панель */
+  overscroll-behavior: contain;
+}
+
+.dialog-day {
+  text-align: center; font-size: 11.5px; color: var(--hint);
+  text-transform: uppercase; letter-spacing: 0.04em; margin: 14px 0 8px;
+}
+
+.dialog-msg { display: flex; flex-direction: column; max-width: 82%; margin-bottom: 8px; }
+.dialog-msg.from-client { align-items: flex-start; margin-right: auto; }
+.dialog-msg.from-bot { align-items: flex-end; margin-left: auto; }
+.dialog-msg:last-child { margin-bottom: 0; }
+
+.dialog-bubble {
+  padding: 8px 11px; border-radius: 13px; font-size: 13.5px; line-height: 1.45;
+  background: var(--bg); border: 1px solid var(--line);
+  /* сообщения приходят с переносами строк и длинными ссылками без пробелов */
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.dialog-msg.from-bot .dialog-bubble {
+  background: var(--accent); border-color: transparent; color: var(--accent-text);
+}
+
+/* Ссылку в пузыре красить нечем — на акцентном фоне свой цвет не читается,
+   так что берём цвет текста пузыря и отличаем подчёркиванием. */
+.dialog-bubble a { color: inherit; text-decoration: underline; }
+
+.dialog-time { font-size: 11px; color: var(--hint); margin-top: 3px; }
+
+.dialog-more {
+  display: block; width: 100%; margin-bottom: 10px; padding: 7px 0;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--bg);
+  color: var(--accent); font-family: inherit; font-size: 12.5px; font-weight: 600;
+  cursor: pointer;
+}
+.dialog-more:disabled { color: var(--hint); cursor: default; }
+
+.dialog-start {
+  text-align: center; font-size: 11.5px; color: var(--hint); margin-bottom: 10px;
+}

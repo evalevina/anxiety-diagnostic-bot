@@ -1,0 +1,52 @@
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+.server_verified_known_hosts
+
+# User data, exports, logs and backups
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.log
+*.xlsx
+*.csv
+*.bak
+*.backup
+*.zip
+*.tar
+*.tar.gz
+
+# Paid content is supplied privately, never through the public repository
+materials/*
+!materials/README.md
+
+# Python and editor state
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Internal operations, migration history and duplicate assets
+.migration/
+.claude/
+.codex/
+.agents/
+Microsoft/
+deploy/
+CURRENT_DEPLOYMENT.md
+HANDOFF_*.md
+SSH-diagnostics-for-support.txt
+ssh-debug-*.txt
+images/images/

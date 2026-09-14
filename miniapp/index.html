@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Запись на сессию</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="style.css?v=4">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+
+<main id="app">
+
+  <section id="screen-date" class="screen">
+    <img class="booking-hero" src="images/booking-hero.jpg" alt="">
+    <div class="steps">
+      <div class="step active"><span class="step-dot">1</span><span class="step-label">Дата</span></div>
+      <div class="step-line"></div>
+      <div class="step"><span class="step-dot">2</span><span class="step-label">Время</span></div>
+      <div class="step-line"></div>
+      <div class="step"><span class="step-dot">3</span><span class="step-label">Повод</span></div>
+    </div>
+    <h1>Запись на сессию</h1>
+    <p class="hint">Выбери удобный день — доступны ближайшие 60 дней, кроме воскресений</p>
+    <div class="day-picker" id="day-picker"></div>
+  </section>
+
+  <section id="screen-time" class="screen hidden">
+    <button class="back" data-back="screen-date">← Другой день</button>
+    <div class="steps">
+      <div class="step done"><span class="step-dot">1</span><span class="step-label">Дата</span></div>
+      <div class="step-line"></div>
+      <div class="step active"><span class="step-dot">2</span><span class="step-label">Время</span></div>
+      <div class="step-line"></div>
+      <div class="step"><span class="step-dot">3</span><span class="step-label">Повод</span></div>
+    </div>
+    <h1 id="time-title">Выбери время</h1>
+    <div id="slots" class="slots"></div>
+    <div id="time-empty" class="hint hidden">На этот день все места заняты — выбери другой день</div>
+  </section>
+
+  <section id="screen-concern" class="screen hidden">
+    <button class="back" data-back="screen-time">← Другое время</button>
+    <div class="steps">
+      <div class="step done"><span class="step-dot">1</span><span class="step-label">Дата</span></div>
+      <div class="step-line"></div>
+      <div class="step done"><span class="step-dot">2</span><span class="step-label">Время</span></div>
+      <div class="step-line"></div>
+      <div class="step active"><span class="step-dot">3</span><span class="step-label">Повод</span></div>
+    </div>
+    <h1>Что тебя беспокоит?</h1>
+    <p class="hint">Коротко, в двух словах — это поможет Еве подготовиться к встрече</p>
+    <textarea id="concern-input" rows="4" placeholder="Например: тревога на работе"></textarea>
+    <div id="concern-error" class="error"></div>
+    <button id="concern-submit-btn" class="pay-btn">Отправить запрос</button>
+  </section>
+
+  <section id="screen-done" class="screen hidden">
+    <h1>Запрос отправлен ⏳</h1>
+    <div class="body-card">
+      <p id="done-text" class="body-text" style="font-weight:500"></p>
+      <p class="hint" style="margin:8px 0 0">Ева подтвердит запись в ближайшее время — напишет тебе в чат 🤍</p>
+    </div>
+  </section>
+
+  <section id="screen-payment" class="screen hidden">
+    <h1>Оплата</h1>
+    <div class="body-card">
+      <p id="payment-title" class="body-text" style="font-weight:500; margin-bottom:6px"></p>
+      <p id="payment-amount" class="hint" style="margin-bottom:0"></p>
+    </div>
+    <div id="payment-loading" class="center-note">
+      <div class="spinner"></div>
+      <p id="payment-desc" class="hint" style="margin-bottom:0">Готовим ссылку на оплату…</p>
+    </div>
+    <div id="payment-error" class="error"></div>
+    <button id="payment-btn" class="pay-btn hidden"></button>
+    <p class="hint payment-legal">
+      Оплата означает принятие
+      <a href="https://levinaeva.com/oferta.html" target="_blank" rel="noopener">условий оферты</a>
+      и <a href="https://levinaeva.com/privacy.html" target="_blank" rel="noopener">политики обработки данных</a>.
+    </p>
+    <div id="payment-waiting" class="center-note hidden">
+      <div class="spinner"></div>
+      <p class="hint" style="margin-bottom:0">Ожидаем подтверждения оплаты — обычно это занимает несколько секунд…</p>
+    </div>
+  </section>
+
+  <section id="screen-payment-done" class="screen hidden">
+    <h1>Оплата прошла ✅</h1>
+    <p class="hint">Спасибо! Я уже написала тебе в чат — все детали там 🤍</p>
+  </section>
+
+  <section id="screen-result" class="screen hidden">
+    <div id="result-loading" class="center-note"><div class="spinner"></div></div>
+    <img id="result-image" class="result-image hidden">
+    <div id="result-badge" class="type-badge hidden"></div>
+    <h1 id="result-name"></h1>
+    <p id="result-date" class="hint"></p>
+    <div id="result-body" class="hidden">
+      <div class="body-card">
+        <div class="card-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.45.9 1.15.9 1.9V16h5.2v-.2c0-.75.3-1.45.9-1.9A6 6 0 0 0 12 3Z"/></svg>Что происходит</div>
+        <p id="result-text" class="body-text"></p>
+      </div>
+      <div class="body-card">
+        <div class="card-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 4h11l-2.5 3.5L16 11H5"/></svg>Что делать</div>
+        <p id="result-exercise" class="body-text"></p>
+      </div>
+    </div>
+    <p id="result-empty" class="hint hidden"></p>
+  </section>
+
+  <section id="screen-cabinet" class="screen screen-cabinet hidden">
+    <h1>Личный кабинет</h1>
+
+    <div id="tab-profile" class="tab-panel">
+      <div class="center-note"><div class="spinner"></div></div>
+    </div>
+    <div id="tab-bookings" class="tab-panel hidden"></div>
+    <div id="tab-diary" class="tab-panel hidden">
+      <canvas id="diary-chart" width="300" height="120"></canvas>
+      <div id="diary-list"></div>
+    </div>
+
+    <nav class="bottom-tabs">
+      <button class="bottom-tab active" data-tab="profile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c1.5-4 5-5.5 7.5-5.5s6 1.5 7.5 5.5"/></svg>
+        Профиль
+      </button>
+      <button class="bottom-tab" data-tab="bookings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>
+        Записи
+      </button>
+      <button class="bottom-tab" data-tab="diary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21V5.5Z"/><path d="M4 19a2.5 2.5 0 0 1 2.5-2.5H20"/></svg>
+        Дневник
+      </button>
+    </nav>
+  </section>
+
+</main>
+
+<script src="app.js?v=3"></script>
+</body>
+</html>
